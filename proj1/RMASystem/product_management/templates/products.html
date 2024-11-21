@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Product List{% endblock %}
+
+{% block content %}
+<h1>Product List</h1>
+<table>
+    <thead>
+        <tr>
+            <th>Category</th>
+            <th>Serial Number (SN)</th>
+            <th>Status</th>
+            <th>Current Task</th>
+            <th>Location</th>
+            <th>Priority Level</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for product in products %}
+            <tr>
+                <td>{{ product.category.name }}</td>
+                <td><a href="{% url 'product_detail' product.SN %}">{{ product.SN }}</a></td>
+                <td>{{ product.status.name }}</td>
+                <td>
+                    {% if product.tasks.filter(producttask__is_completed=False).exists %}
+                        {{ product.tasks.filter(producttask__is_completed=False).first.task.action }}
+                    {% else %}
+                        No ongoing task
+                    {% endif %}
+                </td>
+                <td>{{ product.location }}</td>
+                <td>{{ product.priority_level }}</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

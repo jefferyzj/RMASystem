@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Product Detail{% endblock %}
+
+{% block content %}
+<h1>Product Detail</h1>
+
+<!-- Basic Product Information -->
+<p><strong>Category:</strong> {{ product.category.name }}</p>
+<p><strong>Serial Number (SN):</strong> {{ product.SN }}</p>
+<p><strong>Status:</strong> {{ product.status.name }}</p>
+<p><strong>Current Task:</strong>
+    {% if product.tasks.filter(producttask__is_completed=False).exists %}
+        {{ product.tasks.filter(producttask__is_completed=False).first.task.action }}
+    {% else %}
+        No ongoing task
+    {% endif %}
+</p>
+<p><strong>Location:</strong> {{ product.location }}</p>
+<p><strong>Priority Level:</strong> {{ product.priority_level }}</p>
+<p><strong>Description:</strong> {{ product.description }}</p>
+
+<!-- Edit Button -->
+<a href="{% url 'edit_product' product.SN %}" class="btn btn-primary">Edit Product</a>
+
+<!-- Status History and Task Details -->
+<h2>Status History and Task Details</h2>
+{% for status_result in product.status_results.all %}
+    <h3>Status: {{ status_result.status.name }}</h3>
+    <p>Summary Result: {{ status_result.summary_result }}</p>
+    <p>Created At: {{ status_result.created_at }}</p>
+    <h4>Tasks</h4>
+    <ul>
+        {% for task in status_result.tasks.all %}
+            <li>
+                <strong>Action:</strong> {{ task.action }} <br>
+                <strong>Result:</strong> {{ task.result }} <br>
+                <strong>Completed:</strong> {{ task.is_completed }} <br>
+                <strong>Timestamp:</strong> {{ task.timestamp }}
+            </li>
+        {% endfor %}
+    </ul>
+{% endfor %}
+{% endblock %}

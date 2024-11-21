@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Product{% endblock %}
+
+{% block content %}
+<h1>Edit Product Information</h1>
+<form method="post" action="{% url 'edit_product' product.SN %}">
+    {% csrf_token %}
+    <label for="category">Category:</label>
+    <select name="category" id="category">
+        {% for category in categories %}
+            <option value="{{ category.id }}" {% if category.id == product.category.id %}selected{% endif %}>{{ category.name }}</option>
+        {% endfor %}
+    </select>
+    <br>
+    
+    <label for="description">Description:</label>
+    <textarea name="description" id="description">{{ product.description }}</textarea>
+    <br>
+    
+    <label for="priority_level">Priority Level:</label>
+    <select name="priority_level" id="priority_level">
+        <option value="normal" {% if product.priority_level == "normal" %}selected{% endif %}>Normal</option>
+        <option value="hot" {% if product.priority_level == "hot" %}selected{% endif %}>Hot</option>
+        <option value="zfa" {% if product.priority_level == "zfa" %}selected{% endif %}>ZFA</option>
+    </select>
+    <br>
+    
+    <label for="location">Location:</label>
+    <input type="text" name="location" id="location" value="{{ product.location }}">
+    <br>
+    
+    <button type="submit">Save Changes</button>
+</form>
+
+<!-- Status History and Task Details -->
+<h2>Status History and Task Details</h2>
+<div>
+    {% for status_result in product.status_results.all|dictsortreversed:"created_at" %}
+        <h3{% if status_result.status.name == product.status.name %} style="background-color: yellow;"{% endif %}>Status: {{ status_result.status.name }}</h3>
+        <p>Summary Result: {{ status_result.summary_result }}</p>
+        <p>Created At: {{ status_result.created_at }}</p>
+        <h4>Tasks</h4>
+        <ul>
+            {% for task in status_result.tasks.all %}
+                <li{% if not task.is_completed %} style="background-color: yellow;"{% endif %}>
+                    <p><strong>Action:</strong> {{ task.action }}</p>
+                    <p><strong>Result:</strong> {{ task.result }}</p>
+                    <p><strong>Note:</strong> {{ task.note }}</p>
+                    <p><strong>Completed:</strong> {{ task.is_completed }}</p>
+                    <p><strong>Timestamp:</strong> {{ task.timestamp }}</p>
+                    <a href="{% url 'product_task' product.SN %}" class="btn btn-primary">View Or Edit</a>
+                </li>
+            {% endfor %}
+        </ul>
+    {% endfor %}
+</div>
+<!-- Add Task Button -->
+<form method="post" action="{% url 'add_task' product.SN %}">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-success">+</button>
+</form>
+{% endblock %}

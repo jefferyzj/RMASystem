@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Product Task{% endblock %}
+
+{% block content %}
+<h1>Product Task</h1>
+
+<!-- Product Basic Information -->
+<p><strong>Serial Number (SN):</strong> {{ product.SN }}</p>
+<p><strong>Ongoing Status:</strong> {{ product.status.name }}</p>
+
+<!-- Ongoing Task Details -->
+{% if ongoing_task %}
+    <h2>Ongoing Task</h2>
+    <form method="post" action="{% url 'edit_task' ongoing_task.id %}">
+        {% csrf_token %}
+        <p><strong>Action:</strong> {{ ongoing_task.action }}</p>
+        <p><strong>Action Description:</strong> {{ ongoing_task.action_description }}</p>
+        
+        <label for="result">Result:</label>
+        <input type="text" name="result" id="result" value="{{ ongoing_task.result }}">
+        <br>
+        
+        <label for="note">Note:</label>
+        <textarea name="note" id="note">{{ ongoing_task.note }}</textarea>
+        <br>
+        
+        <label for="is_completed">Is Completed:</label>
+        <input type="checkbox" name="is_completed" id="is_completed" {% if ongoing_task.is_completed %}checked{% endif %}>
+        <br>
+        
+        <button type="submit">Save Changes</button>
+    </form>
+    
+    <!-- Skip Task Button -->
+    <form method="post" action="{% url 'skip_task' ongoing_task.id %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-warning">Skip Task</button>
+    </form>
+{% else %}
+    <p>No ongoing task for this product.</p>
+{% endif %}
+{% endblock %}
