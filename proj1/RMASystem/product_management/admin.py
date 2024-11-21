@@ -5,6 +5,7 @@ from .models import Category, Location, Status, Task, StatusTask, Product, Produ
 class CategoryAdmin(admin.ModelAdmin):
     list_display = ('name',)
     search_fields = ('name',)
+    print('CategoryAdmin')
 
 @admin.register(Location)
 class LocationAdmin(admin.ModelAdmin):
