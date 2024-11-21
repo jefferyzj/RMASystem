@@ -8,6 +8,7 @@ from ordered_model.models import OrderedModel
 from django.db.models import Q
 
 
+
 class Category(models.Model):
     name = models.CharField(max_length=100)
 
