@@ -6,6 +6,8 @@ import uuid
 from .utilhelpers import PRIORITY_LEVEL_CHOICES
 from ordered_model.models import OrderedModel
 from django.db.models import Q
+from django.core.exceptions import ValidationError
+
 
 
 
@@ -40,9 +42,10 @@ class Status(TimeStampedModel):
 
     def __str__(self):
         return self.name
+    
 
     def get_possible_next_statuses(self):
-        transitions = StatusTransition.objects.filter(from_status=self).order_by('created')
+        transitions = StatusTransition.objects.filter(from_status=self).select_related('to_status').order_by('created')
         return [transition.to_status for transition in transitions]
 
 class StatusTransition(TimeStampedModel):
@@ -51,6 +54,11 @@ class StatusTransition(TimeStampedModel):
 
     def __str__(self):
         return f'{self.from_status} -> {self.to_status}'
+    
+    def save(self, *args, **kwargs):
+        if self.from_status.is_closed:
+            raise ValidationError(f"Cannot create a transition from a closed status: {self.from_status.name}")
+        super().save(*args, **kwargs)
 
 class Task(TimeStampedModel):
     action = models.CharField(
@@ -80,7 +88,7 @@ class StatusTask(OrderedModel):
         ordering = ['order']
 
     def __str__(self):
-        return f'- The task {self.task.action} under - status {self.status.name} - with the order {self.order}'
+        return f'- The task {self.task.action} under - status {self.status.name} - with the order {self.order}' 
     
 class ProductTask(TimeStampedModel):
     product = models.ForeignKey('Product', related_name='tasks_of_product', on_delete=models.CASCADE)
@@ -111,7 +119,7 @@ class ProductTask(TimeStampedModel):
         ]
 
     def __str__(self):
-        return f'{self.product.SN} - {self.task.action} (UUID: {self.unique_id})'
+        return f'{self.product.SN} - {self.task.action} - is completed: {self.is_completed} - is skipped: {self.is_skipped} - result: {self.result}'
     
     def update_task(self, is_now_completed=False, is_now_skipped=False, result=None, note=None):
         if not self.is_completed and not self.is_skipped:
@@ -152,13 +160,20 @@ class ProductStatus(TimeStampedModel):
         return f'{self.product.SN} - {self.status.name} at {self.changed_at}'
     
     #TODO: need to adjust this method because the result of task had moved to the ProductTask model
+    #Done: adjust the method to get the result of the task from the ProductTask model
     def get_product_status_result(self):
-        tasks = ProductTask.objects.filter(product=self.product, task__statustask__status=self.status).order_by('task__statustask__created')
+        product_tasks = ProductTask.objects.filter(
+            product=self.product, 
+            task__statustask__status=self.status
+            ).select_related('task'
+            ).order_by('task__statustask__created')
+
         result = f'{self.status.name}: '
-        for task in tasks:
-            result += f'{task.task.action} - {task.result}'
-            if task.note:
-                result += f' - Note: {task.note}'
+        for product_task in product_tasks:
+            task_situation = 'Completed' if product_task.is_completed else 'Skipped' if product_task.is_skipped else 'Not Yet Done'
+            result += f'{product_task.task.action} - is {task_situation} - Result: {product_task.result}'
+            if  product_tasks.note:
+                result += f' - Note: {product_task.note}'
             result += ' | '
         return result
 
@@ -195,38 +210,65 @@ class Product(TimeStampedModel, SoftDeletableModel):
 
     def __str__(self):
         current_task_action = self.current_task.action if self.current_task else "No task assigned"
-        return f'Product SN: {self.SN} | Priority: {self.priority_level} | Current Status: {self.current_status.name if self.current_status else "No status"} | Action of Task: {current_task_action}'
+        return f'Product SN: {self.SN} | Priority: {self.priority_level} | Current Status: {self.current_status.name if self.current_status else "No status"} | Action of Task: {current_task_action.action}'
 
     def save(self, *args, **kwargs):
         is_new = not self.pk
         previous_status = None
 
         if is_new:
-            if not self.current_status:
-                rma_sorting_status, created = Status.objects.get_or_create(name="RMA Sorting")
-                self.current_status = rma_sorting_status
+            self._initialize_new_product()
         else:
-            previous_status = Product.objects.get(pk=self.pk).current_status
+            previous_status = self._update_existing_product_status()
 
         super().save(*args, **kwargs)
-        
-        if is_new or previous_status != self.current_status:
-            ProductStatus.objects.create(product=self, status=self.current_status)
-            self.assign_predefined_tasks_by_status()
-            self.locate_current_task()
 
-            # Check if the product is moving to a closed status
-            if self.current_status and self.current_status.is_closed:
-                # Release the location
-                self.location = None
-                # Set current_task to None
-                self.current_task = None
-                # Save the changes
-                self.save(update_fields=['location', 'current_task'])
+        if not is_new and previous_status != self.current_status:
+            self._handle_if_status_change()
+
+    def _initialize_new_product(self):
+        rma_sorting_status, created = Status.objects.get_or_create(name="RMA Sorting")
+        self.change_status(rma_sorting_status)
+        self._locate_current_task()
+
+
+    def _update_existing_product_status(self):
+        previous_status = Product.objects.get(pk=self.pk).current_status
+        super().save(update_fields=['current_status'])
+        return previous_status
+
+    def _handle_if_status_change(self):
+        ProductStatus.objects.create(product=self, status=self.current_status)
+        self._locate_current_task()
+        if self.current_status.is_closed:
+            self.location = None
+            self.current_task = None
+            super().save(update_fields=['location'])
+        #current_task had been saved in the locate_current_task method
+        #current_status had been saved in the _change_status_ method    
+                        
+ 
+    
+    """"change the status of the product to the new status abd assign the predefined tasks of the new status to the product"""
+    def change_status(self, new_status):
+
+        # Check if all tasks under the current status are completed or skipped
+        incomplete_tasks = self.tasks_of_product.filter(
+            is_completed=False, 
+            is_skipped=False, 
+            task__statustask__status=self.current_status
+        )
+        if incomplete_tasks.exists():
+            raise ValidationError("All tasks under the current status must be completed or skipped before changing the status.")
+        
+        self.current_status = new_status
+        self.assign_predefined_tasks_by_status()  
+
 
     #every time before we call this method, we need to make sure that the current_task is not None or the producttask of current_task is inactivated already.
     #return the current task of the product after locating
-    def locate_current_task(self):
+    """locate the current task of the product and save it to the current_task field"""
+    def _locate_current_task(self):
         
         first_active_producttask = self.tasks_of_product.filter(is_completed=False, is_skipped = False).select_related('task__statustask').order_by('task__statustask__order').first()
         current_producttask = self.tasks_of_product.filter(task=self.current_task).first()
@@ -301,5 +343,7 @@ class Product(TimeStampedModel, SoftDeletableModel):
         return "\n".join(history)
     
 
-    #TODO: need to improve the way to retrieve the instances with related name, 
+    #TODO: (Checked)need to improve the way to retrieve the instances with related name, 
+    #TODO: Make some change to product save(), but still need to test and verify the change. 
+    
     
