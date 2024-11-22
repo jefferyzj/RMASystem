@@ -151,6 +151,7 @@ class ProductStatus(TimeStampedModel):
     def __str__(self):
         return f'{self.product.SN} - {self.status.name} at {self.changed_at}'
     
+    #TODO: need to adjust this method because the result of task had moved to the ProductTask model
     def get_product_status_result(self):
         tasks = ProductTask.objects.filter(product=self.product, task__statustask__status=self.status).order_by('task__statustask__created')
         result = f'{self.status.name}: '
@@ -298,4 +299,7 @@ class Product(TimeStampedModel, SoftDeletableModel):
             status_result = product_status.get_product_status_result()
             history.append(f'{status_result} at {product_status.changed_at}')
         return "\n".join(history)
+    
+
+    #TODO: need to improve the way to retrieve the instances with related name, 
     
