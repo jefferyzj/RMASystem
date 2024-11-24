@@ -346,4 +346,4 @@ class Product(TimeStampedModel, SoftDeletableModel):
     #TODO: (Checked)need to improve the way to retrieve the instances with related name, 
     #TODO: Make some change to product save(), but still need to test and verify the change. 
     
-    
+    #add choloe
