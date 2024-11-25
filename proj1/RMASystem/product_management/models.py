@@ -216,85 +216,77 @@ class Product(TimeStampedModel, SoftDeletableModel):
         is_new = not self.pk
         previous_status = None
 
+        if not is_new:
+            previous_status = Product.objects.get(pk=self.pk).current_status
+        
+        if previous_status and previous_status != self.current_status:
+            if not self.is_allowed_change_status(previous_status):
+                raise ValidationError(f"All tasks under the current status-{previous_status.name}-must be completed or skipped before changing.")
+            else:
+                self._handle_status_change()
+        
         if is_new:
             self._initialize_new_product()
-        else:
-            previous_status = self._update_existing_product_status()
-
+        
         super().save(*args, **kwargs)
 
-        if not is_new and previous_status != self.current_status:
-            self._handle_if_status_change()
+    
+    def is_allowed_change_status(self, previous_status):
+        active_tasks = self.tasks_of_product.filter(
+            is_completed=False, 
+            is_skipped=False, 
+            task__statustask__status=previous_status)
+        return not active_tasks.exists()
+
 
     def _initialize_new_product(self):
         rma_sorting_status, created = Status.objects.get_or_create(name="RMA Sorting")
-        self.change_status(rma_sorting_status)
+        self.current_status = rma_sorting_status
+        self.assign_predefined_tasks_by_status()
         self._locate_current_task()
 
 
-    def _update_existing_product_status(self):
-        previous_status = Product.objects.get(pk=self.pk).current_status
-        super().save(update_fields=['current_status'])
-        return previous_status
-
-    def _handle_if_status_change(self):
-        ProductStatus.objects.create(product=self, status=self.current_status)
+    def _handle_status_change(self):
+        ProductStatus.objects.get_or_create(product=self, status=self.current_status)
+        self.assign_predefined_tasks_by_status()
         self._locate_current_task()
         if self.current_status.is_closed:
             self.location = None
             self.current_task = None
-            super().save(update_fields=['location'])
+        
         #current_task had been saved in the locate_current_task method
         #current_status had been saved in the _change_status_ method    
-                        
- 
-    
-    """"change the status of the product to the new status abd assign the predefined tasks of the new status to the product"""
-    def change_status(self, new_status):
-
-        # Check if all tasks under the current status are completed or skipped
-        incomplete_tasks = self.tasks_of_product.filter(
-            is_completed=False, 
-            is_skipped=False, 
-            task__statustask__status=self.current_status
-        )
-        if incomplete_tasks.exists():
-            raise ValidationError("All tasks under the current status must be completed or skipped before changing the status.")
         
-        self.current_status = new_status
-        self.assign_predefined_tasks_by_status()  
-
 
     #every time before we call this method, we need to make sure that the current_task is not None or the producttask of current_task is inactivated already.
     #return the current task of the product after locating
-    """locate the current task of the product and save it to the current_task field"""
+    """locate the current task of the product and save it to the current_task field, but not update to the database"""
     def _locate_current_task(self):
-        
         first_active_producttask = self.tasks_of_product.filter(is_completed=False, is_skipped = False).select_related('task__statustask').order_by('task__statustask__order').first()
         current_producttask = self.tasks_of_product.filter(task=self.current_task).first()
         new_current_productTask = first_active_producttask if first_active_producttask else None
 
         if current_producttask != new_current_productTask:
             self.current_task = new_current_productTask.task if new_current_productTask else None
-            self.save(update_fields=['current_task'])
-
+        self.save(update_fields=['current_task'])
         return self.current_task
 
     def assign_predefined_tasks_by_status(self):
         status_tasks_predefined = self.current_status.status_tasks.filter(is_predefined=True).order_by('order')
         for status_task in status_tasks_predefined:
-            ProductTask.objects.create(product=self, task=status_task.task, is_predefined=True)
+            ProductTask.objects.get_or_create(product=self, task=status_task.task, is_predefined=True)
 
     def assign_tasks(self, task, set_as_predefined_of_status=False):
-        # Check if a StatusTask with the same status and task already exists
-        if not StatusTask.objects.filter(status=self.current_status, task=task).exists():
-            StatusTask.objects.create(
+        # Create a StatusTask for the status
+        StatusTask.objects.get_or_create(
                 status=self.current_status,
                 task=task,
                 defaults={'is_predefined': set_as_predefined_of_status}
             )
         # Create a ProductTask for the product
-        ProductTask.objects.create(product=self, task=task, is_predefined=set_as_predefined_of_status)
+        ProductTask.objects.get_or_create(product=self, task=task, is_predefined=set_as_predefined_of_status)
+        #locate the current task of the product
+        self._locate_current_task()
 
     def insert_task_at_position(self, task, position, set_as_predefined_of_status=False):
         # Get the number of completed tasks
@@ -315,9 +307,15 @@ class Product(TimeStampedModel, SoftDeletableModel):
         status_task.to(position - 1)  # `to` method uses zero-based index
         
         # Assign the task to the product
-        ProductTask.objects.create(product=self, task=task, is_predefined=set_as_predefined_of_status)
+        ProductTask.objects.get_or_create(product=self, task=task, is_predefined=set_as_predefined_of_status)
+        #locate the current task of the product
+        self._locate_current_task()
 
-    def get_all_tasks(self, only_active=False):
+    """
+    get all the tasks of the product, and return the queryset of the tasks ordered by the created time of the status of the task and the order of the task in the status
+    The instances returned are the instances of the ProductTask model
+    """
+    def get_all_tasks_of_product(self, only_active=False):
         tasks = self.tasks_of_product.select_related('task__statustask__status').order_by(
             'task__statustask__status__created', 'task__statustask__order'
         )
@@ -325,10 +323,11 @@ class Product(TimeStampedModel, SoftDeletableModel):
             tasks = tasks.filter(is_completed=False, is_skipped=False)
         return tasks
 
-
+    """
+    get the ongoing task of the product as productTask instance
+    """
     def get_ongoing_task(self):
-        return self.task_of_product.filter(Q(task = self.current_task) and Q(is_completed = False) and Q(is_skipped = False))
-
+        return self.tasks_of_product.filter(Q(task = self.current_task) and Q(product = self) and  Q(is_completed = False) and Q(is_skipped = False))
 
 
     def get_possible_next_statuses(self):
@@ -344,6 +343,6 @@ class Product(TimeStampedModel, SoftDeletableModel):
     
 
     #TODO: (Checked)need to improve the way to retrieve the instances with related name, 
-    #TODO: Make some change to product save(), but still need to test and verify the change. 
+    #TODO: (checked)Make some change to product save(), but still need to test and verify the change. 
     
     
