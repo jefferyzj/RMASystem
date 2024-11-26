@@ -9,8 +9,6 @@ from django.db.models import Q
 from django.core.exceptions import ValidationError
 
 
-
-
 class Category(models.Model):
     name = models.CharField(max_length=100)
 
@@ -93,8 +91,8 @@ class StatusTask(OrderedModel):
 class ProductTask(TimeStampedModel):
     product = models.ForeignKey('Product', related_name='tasks_of_product', on_delete=models.CASCADE)
     task = models.ForeignKey('Task', related_name='products_of_task', on_delete=models.CASCADE)
-    is_completed = models.BooleanField(default=False)
-    is_skipped = models.BooleanField(default=False)
+    is_completed = models.BooleanField(default=False, help_text="Indicates if the task is completed")
+    is_skipped = models.BooleanField(default=False, help_text="Indicates if the task is skipped")
     is_predefined = models.BooleanField(default=False, help_text="Indicates if the task was added automatically")
     unique_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     result = models.TextField(
@@ -149,7 +147,7 @@ class ProductTask(TimeStampedModel):
 
         if self.product.current_task == self.task:
             self.product.current_task = self.product.locate_current_task()
-            self.product.save(update_fields=['current_task'])
+            
         
 class ProductStatus(TimeStampedModel):
     product = models.ForeignKey('Product', related_name='status_history_of_product', on_delete=models.CASCADE)
@@ -268,16 +266,17 @@ class Product(TimeStampedModel, SoftDeletableModel):
 
         if current_producttask != new_current_productTask:
             self.current_task = new_current_productTask.task if new_current_productTask else None
-        self.save(update_fields=['current_task'])
+            self.save(update_fields=['current_task'])
         return self.current_task
 
     def assign_predefined_tasks_by_status(self):
         status_tasks_predefined = self.current_status.status_tasks.filter(is_predefined=True).order_by('order')
         for status_task in status_tasks_predefined:
-            ProductTask.objects.get_or_create(product=self, task=status_task.task, is_predefined=True)
+            #always create a new productTask instance for the product since we allow assign the duplicate tasks to the product
+            ProductTask.objects.create(product=self, task=status_task.task, is_predefined=True)
 
     def assign_tasks(self, task, set_as_predefined_of_status=False):
-        # Create a StatusTask for the status
+        # Create a StatusTask for the status and task   
         StatusTask.objects.get_or_create(
                 status=self.current_status,
                 task=task,

@@ -1,10 +1,8 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.generic import View, DetailView, ListView, UpdateView, CreateView, FormView
 from django.urls import reverse_lazy
-from .models import Product, ProductTask, Category, Task, Location
-from .forms import ProductForm, ProductTaskForm, TaskForm, LocationForm
-from .models import Product, Status, StatusTransition
-from .forms import StatusTransitionForm
+from .models import Product, ProductTask, Category, Task, Location, Status, StatusTransition
+from .forms import ProductForm, ProductTaskForm, TaskForm, LocationForm, StatusTransitionForm
 
 class ProductListView(ListView):
     model = Product
@@ -18,21 +16,27 @@ class ProductDetailView(DetailView):
     slug_field = 'SN'
     slug_url_kwarg = 'sn'
 
-class ProductUpdateView(UpdateView):
-    model = Product
-    form_class = ProductForm
-    template_name = 'product_edit.html'
-    slug_field = 'SN'
-    slug_url_kwarg = 'sn'
+class ProductUpdateView(View):
+    def get(self, request, sn):
+        product = get_object_or_404(Product, SN=sn)
+        form = ProductForm(instance=product)
+        return render(request, 'product_edit.html', {
+            'form': form,
+            'product': product
+        })
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['categories'] = Category.objects.all()
-        context['status_results'] = ResultOfStatus.objects.filter(product=self.object).prefetch_related('tasks').order_by('-created_at')
-        return context
+    def post(self, request, sn):
+        product = get_object_or_404(Product, SN=sn)
+        form = ProductForm(request.POST, instance=product)
 
-    def get_success_url(self):
-        return reverse_lazy('product_detail', kwargs={'sn': self.object.SN})
+        if form.is_valid():
+            form.save()
+            return redirect('product_detail', sn=product.SN)
+
+        return render(request, 'product_edit.html', {
+            'form': form,
+            'product': product
+        })
 
 class ProductTaskView(View):
     def get(self, request, sn):
@@ -74,8 +78,6 @@ class LocationListView(ListView):
     template_name = 'locations.html'
     context_object_name = 'locations'
 
-
-
 class StatusTransitionView(FormView):
     form_class = StatusTransitionForm
     template_name = 'transition_status.html'
@@ -90,13 +92,14 @@ class StatusTransitionView(FormView):
     def form_valid(self, form):
         new_status = form.cleaned_data['to_status']
         new_status_name = form.cleaned_data['new_status_name']
+        possible_next_statuses = form.cleaned_data.get['possible_next_statuses', []]
 
         if new_status_name:
             new_status, created = Status.objects.get_or_create(name=new_status_name)
             if created:
                 # Create a new StatusTransition to remember the mapping
-                StatusTransition.objects.create(from_status=self.product.current_status, to_status=new_status)
-
+                for next_status in possible_next_statuses:
+                    StatusTransition.objects.create(from_status=new_status, to_status=next_status)
         # Transition to the new status
         self.product.current_status = new_status
         self.product.save()
