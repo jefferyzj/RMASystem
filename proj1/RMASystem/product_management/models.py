@@ -287,6 +287,7 @@ class Product(TimeStampedModel, SoftDeletableModel):
         #locate the current task of the product
         self._locate_current_task()
 
+# ?to see if this method is needed or it is too hard to implement.
     def insert_task_at_position(self, task, position, set_as_predefined_of_status=False):
         # Get the number of completed tasks
         num_inactive_tasks = self.tasks_of_product.filter(Q(is_completed=True) | Q(is_skipped = True)).count()
@@ -343,5 +344,7 @@ class Product(TimeStampedModel, SoftDeletableModel):
 
     #TODO: (Checked)need to improve the way to retrieve the instances with related name, 
     #TODO: (checked)Make some change to product save(), but still need to test and verify the change. 
+    #TODO: review the insert_task_at_position method, to see if it is needed or it is too hard to implement.
+    #  ALso need to review the statusTask model, to see if it is needed for the order. 
     
     

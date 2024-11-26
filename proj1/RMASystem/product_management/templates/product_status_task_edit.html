@@ -1,15 +1,10 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <h2>Product Detail</h2>
+  <h2>Edit Status and Tasks</h2>
   <form method="post">
     {% csrf_token %}
     {{ form.as_p }}
     <button type="submit">Save</button>
   </form>
-
-  <h3>Status History</h3>
-  <pre>{{ status_history }}</pre>
-
-  <a href="{% url 'product_status_task_edit' product.SN %}">Edit Status and Task</a>
 {% endblock %}

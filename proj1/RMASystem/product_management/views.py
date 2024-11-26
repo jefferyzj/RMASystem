@@ -1,42 +1,43 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.generic import View, DetailView, ListView, UpdateView, CreateView, FormView
 from django.urls import reverse_lazy
-from .models import Product, ProductTask, Category, Task, Location, Status, StatusTransition
+from .models import Product, ProductTask, Category, Task, Location, Status, StatusTransition, ProductStatus
 from .forms import ProductForm, ProductTaskForm, TaskForm, LocationForm, StatusTransitionForm
+from django.core.exceptions import ValidationError
 
 class ProductListView(ListView):
     model = Product
     template_name = 'products.html'
     context_object_name = 'products'
 
-class ProductDetailView(DetailView):
+class ProductStatusTaskEditView(UpdateView):
     model = Product
-    template_name = 'product_detail.html'
-    context_object_name = 'product'
+    form_class = ProductForm
+    template_name = 'product_status_task_edit.html'
     slug_field = 'SN'
     slug_url_kwarg = 'sn'
+    context_object_name = 'product'
 
-class ProductUpdateView(View):
-    def get(self, request, sn):
-        product = get_object_or_404(Product, SN=sn)
-        form = ProductForm(instance=product)
-        return render(request, 'product_edit.html', {
-            'form': form,
-            'product': product
-        })
+    def get_success_url(self):
+        return reverse_lazy('product_detail', kwargs={'sn': self.object.SN})
 
-    def post(self, request, sn):
-        product = get_object_or_404(Product, SN=sn)
-        form = ProductForm(request.POST, instance=product)
+class ProductDetailView(UpdateView):
+    model = Product
+    form_class = ProductForm
+    template_name = 'product_detail.html'
+    slug_field = 'SN'
+    slug_url_kwarg = 'sn'
+    context_object_name = 'product'
 
-        if form.is_valid():
-            form.save()
-            return redirect('product_detail', sn=product.SN)
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        product = self.get_object()
+        context['status_history'] = product.list_status_result_history()
+        return context
 
-        return render(request, 'product_edit.html', {
-            'form': form,
-            'product': product
-        })
+    def get_success_url(self):
+        return reverse_lazy('product_detail', kwargs={'sn': self.object.SN})
+
 
 class ProductTaskView(View):
     def get(self, request, sn):

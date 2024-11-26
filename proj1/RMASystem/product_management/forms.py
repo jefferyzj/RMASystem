@@ -49,48 +49,6 @@ class LocationForm(BaseForm):
                 Location.create_rack_with_layers_and_spaces(location.rack_name, num_layers, num_spaces_per_layer)
         return location
 
-class ProductForm(BaseForm):
-    new_status_name = forms.CharField(max_length=100, required=False, label="Or Create New Status")
-    possible_next_statuses = forms.ModelMultipleChoiceField(queryset=Status.objects.all(), required=False, label="Possible Next Statuses")
-
-    class Meta:
-        model = Product
-        fields = ['SN', 'category', 'priority_level', 'description', 'current_status', 'current_task', 'location', 'new_status_name', 'possible_next_statuses']
-
-    def clean(self):
-        cleaned_data = super().clean()
-        current_status = cleaned_data.get('current_status')
-        new_status_name = cleaned_data.get('new_status_name')
-        possible_next_statuses = cleaned_data.get('possible_next_statuses')
-        product = self.instance
-
-        # Check if all required tasks are completed before changing the status
-        if current_status != product.current_status:
-            incomplete_tasks = product.tasks_of_product.filter(is_completed=False, task__can_be_skipped=False)
-            if incomplete_tasks.exists():
-                raise forms.ValidationError(f"All required tasks must be completed or removed before changing the status -{current_status.name}-.")
-        if new_status_name:
-            if Status.objects.filter(name=new_status_name).exists():
-                raise forms.ValidationError(f"Status with name -{new_status_name}- already exists.")
-            new_status, created = Status.objects.get_or_create(name=new_status_name)
-            cleaned_data['current_status'] = new_status
-            cleaned_data['possible_next_statuses'] = possible_next_statuses
-
-        return cleaned_data
-
-    def save(self, commit=True):
-        product = super().save(commit=False)
-        new_status_name = self.cleaned_data.get('new_status_name')
-        possible_next_statuses = self.cleaned_data.get('possible_next_statuses')
-        if commit:
-            product.save()
-            self.save_m2m()
-            # Handle status transition
-            if new_status_name:
-                new_status = Status.objects.get(name=new_status_name)
-                for next_status in possible_next_statuses:
-                    StatusTransition.objects.get_or_create(from_status=new_status, to_status=next_status)
-        return product
 
 class StatusTransitionForm(forms.ModelForm):
     new_status_name = forms.CharField(max_length=100, required=False, label="Or Create New Status")
@@ -129,3 +87,164 @@ class ProductStatusForm(forms.ModelForm):
         self.helper = FormHelper()
         self.helper.form_method = 'post'
         self.helper.add_input(Submit('submit', 'Submit'))
+
+
+class ProductForm(BaseForm):
+    new_status_name = forms.CharField(max_length=100, required=False, label="Or Create New Status")
+    tasks = forms.ModelMultipleChoiceField(queryset=Task.objects.all(), required=False, widget=forms.CheckboxSelectMultiple, label="Tasks")
+    new_task_name = forms.CharField(max_length=100, required=False, label="Or Create New Task")
+
+    class Meta:
+        model = Product
+        fields = ['SN', 'category', 'priority_level', 'description', 'current_status', 'new_status_name', 'tasks', 'new_task_name']
+        widgets = {
+            'SN': forms.TextInput(attrs={'readonly': 'readonly'}),
+            'category': forms.TextInput(attrs={'readonly': 'readonly'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['current_status'].queryset = Status.objects.all()
+        self.fields['current_status'].help_text = "Select an existing status or enter a new one below"
+
+    def clean(self):
+        cleaned_data = super().clean()
+        current_status = cleaned_data.get('current_status')
+        new_status_name = cleaned_data.get('new_status_name')
+        product = self.instance
+
+        # Ensure either an existing status is selected or a new status is provided, but not both
+        if not current_status and not new_status_name:
+            raise forms.ValidationError("You must select an existing status or enter a new status.")
+        if current_status and new_status_name:
+            raise forms.ValidationError("You cannot select an existing status and enter a new status at the same time.")
+
+        # Check if all required tasks are completed before changing the status
+        if current_status != product.current_status:
+            incomplete_tasks = product.tasks_of_product.filter(is_completed=False, is_skipped=False)
+            if incomplete_tasks.exists():
+                raise forms.ValidationError("All tasks must be completed or skipped before changing the status.")
+
+        # Handle new status creation
+        if new_status_name:
+            if Status.objects.filter(name=new_status_name).exists():
+                raise forms.ValidationError(f"Status with name '{new_status_name}' already exists.")
+            new_status, created = Status.objects.get_or_create(name=new_status_name)
+            cleaned_data['current_status'] = new_status
+
+            # Create a new StatusTransition from the current status to the new status
+            StatusTransition.objects.create(from_status=product.current_status, to_status=new_status)
+
+            # Create a new ProductStatus
+            ProductStatus.objects.create(product=product, status=new_status)
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        product = super().save(commit=False)
+        new_status_name = self.cleaned_data.get('new_status_name')
+        tasks = self.cleaned_data.get('tasks')
+        new_task_name = self.cleaned_data.get('new_task_name')
+
+        if commit:
+            product.save()
+            self.save_m2m()
+
+            # Handle tasks assignment
+            if tasks or new_task_name:
+                # Clear existing tasks
+                ProductTask.objects.filter(product=product).delete()
+
+                # Assign new tasks
+                if tasks:
+                    for task in tasks:
+                        # Create or get StatusTask for the current status and task
+                        StatusTask.objects.get_or_create(status=product.current_status, task=task)
+                        ProductTask.objects.create(product=product, task=task)
+
+                # Handle new task creation
+                if new_task_name:
+                    new_task, created = Task.objects.get_or_create(action=new_task_name)
+                    # Create or get StatusTask for the current status and new task
+                    StatusTask.objects.get_or_create(status=product.current_status, task=new_task)
+                    ProductTask.objects.create(product=product, task=new_task)
+
+        return product
+    
+
+    new_status_name = forms.CharField(max_length=100, required=False, label="Or Create New Status")
+    tasks = forms.ModelMultipleChoiceField(queryset=Task.objects.all(), required=False, widget=forms.CheckboxSelectMultiple, label="Tasks")
+    new_task_name = forms.CharField(max_length=100, required=False, label="Or Create New Task")
+
+    class Meta:
+        model = Product
+        fields = ['current_status', 'new_status_name', 'tasks', 'new_task_name']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['current_status'].queryset = Status.objects.all()
+        self.fields['current_status'].help_text = "Select an existing status or enter a new one below"
+
+    def clean(self):
+        cleaned_data = super().clean()
+        current_status = cleaned_data.get('current_status')
+        new_status_name = cleaned_data.get('new_status_name')
+        product = self.instance
+
+        # Ensure either an existing status is selected or a new status is provided, but not both
+        if not current_status and not new_status_name:
+            raise forms.ValidationError("You must select an existing status or enter a new status.")
+        if current_status and new_status_name:
+            raise forms.ValidationError("You cannot select an existing status and enter a new status at the same time.")
+
+        # Check if all required tasks are completed before changing the status
+        if current_status != product.current_status:
+            incomplete_tasks = product.tasks_of_product.filter(is_completed=False, is_skipped=False)
+            if incomplete_tasks.exists():
+                raise forms.ValidationError("All tasks must be completed or skipped before changing the status.")
+
+        # Handle new status creation
+        if new_status_name:
+            if Status.objects.filter(name=new_status_name).exists():
+                raise forms.ValidationError(f"Status with name '{new_status_name}' already exists.")
+            new_status, created = Status.objects.get_or_create(name=new_status_name)
+            cleaned_data['current_status'] = new_status
+
+            # Create a new StatusTransition from the current status to the new status
+            StatusTransition.objects.create(from_status=product.current_status, to_status=new_status)
+
+            # Create a new ProductStatus
+            ProductStatus.objects.create(product=product, status=new_status)
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        product = super().save(commit=False)
+        new_status_name = self.cleaned_data.get('new_status_name')
+        tasks = self.cleaned_data.get('tasks')
+        new_task_name = self.cleaned_data.get('new_task_name')
+
+        if commit:
+            product.save()
+            self.save_m2m()
+
+            # Handle tasks assignment
+            if tasks or new_task_name:
+                # Clear existing tasks
+                ProductTask.objects.filter(product=product).delete()
+
+                # Assign new tasks
+                if tasks:
+                    for task in tasks:
+                        # Create or get StatusTask for the current status and task
+                        StatusTask.objects.get_or_create(status=product.current_status, task=task)
+                        ProductTask.objects.create(product=product, task=task)
+
+                # Handle new task creation
+                if new_task_name:
+                    new_task, created = Task.objects.get_or_create(action=new_task_name)
+                    # Create or get StatusTask for the current status and new task
+                    StatusTask.objects.get_or_create(status=product.current_status, task=new_task)
+                    ProductTask.objects.create(product=product, task=new_task)
+
+        return product
