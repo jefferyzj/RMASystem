@@ -333,24 +333,27 @@ class Product(TimeStampedModel, SoftDeletableModel):
         Assign the predefined tasks of the current status to the product
         """
         status_tasks_predefined = self.current_status.status_tasks.filter(is_predefined=True).order_by('order')
-        for status_task in status_tasks_predefined:
-            #always create a new productTask instance for the product since we allow assign the duplicate tasks to the product
-            ProductTask.objects.create(product=self, task=status_task.task, is_predefined=True)
+        product_tasks = [
+            ProductTask(product=self, task=status_task.task, is_predefined=True)
+            for status_task in status_tasks_predefined
+        ]
+        ProductTask.objects.bulk_create(product_tasks)
 
     def assign_tasks(self, task, set_as_predefined_of_status=False):
         """
         Assign a task to the product, and update the current task of the product.
         """
-        # Create a StatusTask for the status and task   
-        StatusTask.objects.get_or_create(
+        with transaction.atomic():
+            # Create a StatusTask for the status and task if necessary
+            StatusTask.objects.get_or_create(
                 status=self.current_status,
                 task=task,
                 defaults={'is_predefined': set_as_predefined_of_status}
             )
-        # Create a ProductTask for the product
-        ProductTask.objects.get_or_create(product=self, task=task, is_predefined=set_as_predefined_of_status)
-        #locate the current task of the product
-        self._locate_current_task()
+            # Create a ProductTask for the product
+            ProductTask.objects.get_or_create(product=self, task=task, is_predefined=set_as_predefined_of_status)
+            # Locate the current task of the product
+            self._locate_current_task()
 
 
     def get_all_tasks_of_product(self, only_active=False):
@@ -371,9 +374,9 @@ class Product(TimeStampedModel, SoftDeletableModel):
         get the ongoing task of the product as productTask instance
         """
         return self.tasks_of_product.filter(Q(task = self.current_task) 
-                                            and Q(product = self) 
-                                            and  Q(is_completed = False) 
-                                            and Q(is_skipped = False))
+                                            & Q(product = self) 
+                                            &  Q(is_completed = False) 
+                                            & Q(is_skipped = False))
 
     def list_status_result_history(self):
         """
@@ -396,27 +399,6 @@ class Product(TimeStampedModel, SoftDeletableModel):
     #TODO: (checked)Make some change to product save(), but still need to test and verify the change. 
     #TODO: (Checked)review the insert_task_at_position method, to see if it is needed or it is too hard to implement.
     #  ALso need to review the statusTask model, to see if it is needed for the order. 
-"""    
-    # ?to see if this method is needed or it is too hard to implement.
-    def insert_task_at_position(self, task, position, set_as_predefined_of_status=False):
-        # Get the number of completed tasks
-        num_inactive_tasks = self.tasks_of_product.filter(Q(is_completed=True) | Q(is_skipped = True)).count()
-
-        # Check if the target position is within the range of completed tasks
-        if position <= num_inactive_tasks:
-            raise ValueError("Cannot insert a task at a position within the range of completed or skipped tasks.")
-
-        # Create the new task at the specified position
-        status_task = StatusTask.objects.get_or_create(
-            status=self.current_status,
-            task=task,
-            is_predefined=set_as_predefined_of_status
-        )
-        
-        # Move the task to the specified position
-        status_task.to(position - 1)  # `to` method uses zero-based index
-        
-        # Assign the task to the product
-        ProductTask.objects.get_or_create(product=self, task=task, is_predefined=set_as_predefined_of_status)
-        #locate the current task of the product
-        self._locate_current_task()"""
+    #TODO: (checked)go through the models.py and detected some bugs and fix them.
+    #TODO: check the views.py and forms.py especially about prodductlist, productdetail, and still need to go through the producttaskview and productstatuseditview
+    #TODO: the products.html and product_detail.html need to be checked and modified. But it is almost done.

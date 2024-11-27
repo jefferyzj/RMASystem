@@ -4,22 +4,31 @@ from django.urls import reverse_lazy
 from .models import Product, ProductTask, Category, Task, Location, Status, StatusTransition, ProductStatus
 from .forms import ProductForm, ProductTaskForm, TaskForm, LocationForm, StatusTransitionForm
 from django.core.exceptions import ValidationError
+from django_filters.views import FilterView
+from .filters import ProductFilter
 
-class ProductListView(ListView):
+class ProductListView(FilterView):
     model = Product
     template_name = 'products.html'
     context_object_name = 'products'
+    paginate_by = 10
+    filterset_class = ProductFilter
 
-class ProductStatusTaskEditView(UpdateView):
-    model = Product
-    form_class = ProductForm
-    template_name = 'product_status_task_edit.html'
-    slug_field = 'SN'
-    slug_url_kwarg = 'sn'
-    context_object_name = 'product'
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        categories = self.request.GET.getlist('category')
+        if categories:
+            queryset = queryset.filter(category__name__in=categories)
+        return queryset
 
-    def get_success_url(self):
-        return reverse_lazy('product_detail', kwargs={'sn': self.object.SN})
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['categories'] = Category.objects.all()
+        context['locations'] = Location.objects.all()
+        context['priority_levels'] = Product.PRIORITY_LEVEL_CHOICES
+        context['statuses'] = Status.objects.all()
+        context['tasks'] = Task.objects.all()
+        return context
 
 class ProductDetailView(UpdateView):
     model = Product
@@ -35,9 +44,26 @@ class ProductDetailView(UpdateView):
         context['status_history'] = product.list_status_result_history()
         return context
 
+    def form_valid(self, form):
+        new_location_name = form.cleaned_data.get('new_location')
+        if new_location_name:
+            new_location, created = Location.objects.get_or_create(rack_name=new_location_name)
+            form.instance.location = new_location
+        return super().form_valid(form)
+
     def get_success_url(self):
         return reverse_lazy('product_detail', kwargs={'sn': self.object.SN})
 
+class ProductStatusTaskEditView(UpdateView):
+    model = Product
+    form_class = ProductForm
+    template_name = 'product_status_task_edit.html'
+    slug_field = 'SN'
+    slug_url_kwarg = 'sn'
+    context_object_name = 'product'
+
+    def get_success_url(self):
+        return reverse_lazy('product_detail', kwargs={'sn': self.object.SN})
 
 class ProductTaskView(View):
     def get(self, request, sn):
