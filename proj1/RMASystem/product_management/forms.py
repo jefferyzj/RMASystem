@@ -4,6 +4,7 @@ from crispy_forms.layout import Submit
 from .models import Product, Category, Status, Task, ProductTask, StatusTask, Location, StatusTransition, ProductStatus
 from django.db import transaction
 from .utilhelpers import PRIORITY_LEVEL_CHOICES
+from django.core.validators import RegexValidator
 
 class BaseForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
@@ -197,3 +198,33 @@ class ProductForm(BaseForm):
                     ProductTask.objects.create(product=product, task=new_task)
 
         return product
+    
+    from django import forms
+
+class CheckinOrUpdateForm(forms.Form):
+    ACTION_CHOICES = [
+        ('checkin_new', 'Check-in For New'),
+        ('checkin_location', 'Check-in/Update Location'),
+    ]
+
+    action = forms.ChoiceField(choices=ACTION_CHOICES, widget=forms.RadioSelect)
+    category = forms.ModelChoiceField(queryset=Category.objects.all(), required=False)
+    sn = forms.CharField(max_length=13, required=False, validators=[RegexValidator(regex=r'^\d{13}$', message='SN must be exactly 13 digits', code='invalid_sn')])
+    short_12V_48V = forms.ChoiceField(choices=[('P', 'Pass'), ('F12', 'Fail on 12V'), ('F48', 'Fail on 48V')], required=False, initial='P')
+    priority_level = forms.ChoiceField(choices=PRIORITY_LEVEL_CHOICES, required=False, initial='Normal')
+    rack_name = forms.ChoiceField(choices=[], required=False, label="Rack")
+    layer_number = forms.ChoiceField(choices=[], required=False, label="Layer")
+    space_number = forms.ChoiceField(choices=[], required=False, label="Space")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.form_method = 'post'
+        self.helper.add_input(Submit('submit', 'Submit'))
+        self.fields['category'].widget.attrs.update({'class': 'form-control'})
+        self.fields['sn'].widget.attrs.update({'class': 'form-control'})
+        self.fields['short_12V_48V'].widget.attrs.update({'class': 'form-control'})
+        self.fields['priority_level'].widget.attrs.update({'class': 'form-control'})
+        self.fields['rack_name'].widget.attrs.update({'class': 'form-control'})
+        self.fields['layer_number'].widget.attrs.update({'class': 'form-control'})
+        self.fields['space_number'].widget.attrs.update({'class': 'form-control'})

@@ -8,7 +8,7 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Location)
 class LocationAdmin(admin.ModelAdmin):
-    list_display = ('rack_name', 'layer_number', 'space_number')
+    list_display = ('rack_name', 'layer_number', 'space_number', 'product')
     search_fields = ('rack_name',)
     list_filter = ('rack_name', 'layer_number', 'space_number')
 

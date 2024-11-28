@@ -15,17 +15,17 @@ class Category(models.Model):
 
     def __str__(self):
         return self.name
-
 class Location(models.Model):
-    rack_name = models.CharField(max_length=100, default='None Rack')
-    layer_number = models.IntegerField(default=-1)
-    space_number = models.IntegerField(default=-1)
+    rack_name = models.CharField(max_length=100)
+    layer_number = models.IntegerField()
+    space_number = models.IntegerField(null=True, blank=True)
+    product = models.OneToOneField('Product', on_delete=models.SET_NULL, null=True, blank=True, related_name='location_detail')
 
     class Meta:
         unique_together = ('rack_name', 'layer_number', 'space_number')
 
     def __str__(self):
-        return f'{self.rack_name} - Layer {self.layer_number} - Space {self.space_number}'
+        return f'{self.rack_name} - Layer {self.layer_number} - Space {self.space_number or "N/A"}'
 
     @staticmethod
     def create_rack_with_layers_and_spaces(rack_name, num_layers, num_spaces_per_layer):
@@ -302,6 +302,9 @@ class Product(TimeStampedModel, SoftDeletableModel):
         self.assign_predefined_tasks_by_status()
         self._locate_current_task()
         if self.current_status.is_closed:
+            if self.location:
+                self.location.product = None
+                self.location.save()
             self.location = None
             self.current_task = None
         #current_task had been saved in the locate_current_task method
@@ -400,5 +403,8 @@ class Product(TimeStampedModel, SoftDeletableModel):
     #TODO: (Checked)review the insert_task_at_position method, to see if it is needed or it is too hard to implement.
     #  ALso need to review the statusTask model, to see if it is needed for the order. 
     #TODO: (checked)go through the models.py and detected some bugs and fix them.
-    #TODO: check the views.py and forms.py especially about prodductlist, productdetail, and still need to go through the producttaskview and productstatuseditview
+    #TODO: checked the views.py and forms.py especially about prodductlist, productdetail, and still need to go through the producttaskview and productstatuseditview
     #TODO: the products.html and product_detail.html need to be checked and modified. But it is almost done.
+    #TODO: (checked)add checkinorupdateview and its form, and the checkinorupdate.html, also update location model to map to the product.
+    #TODO: still not finish the productstatustaskeditview and its form, and the product_status_task_edit.html
+    #TODO: still need to develop the page to add location, add statuses and it transition, add tasks and status task, and add category.

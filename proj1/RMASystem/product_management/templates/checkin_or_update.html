@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+
+{% block title %}Check-in or Update Product{% endblock %}
+
+{% block content %}
+<h2>Check-in or Update Product</h2>
+
+{% if messages %}
+    <ul class="messages">
+        {% for message in messages %}
+            <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
+        {% endfor %}
+    </ul>
+{% endif %}
+
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+
+    <div id="checkin_new_fields" style="display: none;">
+        {{ form.category.label_tag }} {{ form.category }}
+        {{ form.sn.label_tag }} {{ form.sn }}
+        <div id="pg520_fields" style="display: none;">
+            {{ form.short_12V_48V.label_tag }} {{ form.short_12V_48V }}
+            {{ form.priority_level.label_tag }} {{ form.priority_level }}
+        </div>
+    </div>
+
+    <div id="checkin_location_fields" style="display: none;">
+        {{ form.sn.label_tag }} {{ form.sn }}
+        <button type="button" id="search_sn">Search</button>
+        <div id="current_location_info"></div>
+        {{ form.rack_name.label_tag }} {{ form.rack_name }}
+        {{ form.layer_number.label_tag }} {{ form.layer_number }}
+        {{ form.space_number.label_tag }} {{ form.space_number }}
+    </div>
+
+    <button type="submit">Submit</button>
+</form>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const actionFields = document.querySelectorAll('input[name="action"]');
+        const checkinNewFields = document.getElementById('checkin_new_fields');
+        const checkinLocationFields = document.getElementById('checkin_location_fields');
+        const categoryField = document.querySelector('select[name="category"]');
+        const pg520Fields = document.getElementById('pg520_fields');
+        const rackField = document.querySelector('select[name="rack_name"]');
+        const layerField = document.querySelector('select[name="layer_number"]');
+        const spaceField = document.querySelector('select[name="space_number"]');
+        const searchButton = document.getElementById('search_sn');
+        const currentLocationInfo = document.getElementById('current_location_info');
+
+        function toggleFields() {
+            const selectedAction = document.querySelector('input[name="action"]:checked').value;
+            if (selectedAction === 'checkin_new') {
+                checkinNewFields.style.display = 'block';
+                checkinLocationFields.style.display = 'none';
+                const selectedCategory = categoryField.options[categoryField.selectedIndex].text;
+                if (selectedCategory === 'PG520') {
+                    pg520Fields.style.display = 'block';
+                } else {
+                    pg520Fields.style.display = 'none';
+                }
+            } else if (selectedAction === 'checkin_location') {
+                checkinNewFields.style.display = 'none';
+                checkinLocationFields.style.display = 'block';
+            } else {
+                checkinNewFields.style.display = 'none';
+                checkinLocationFields.style.display = 'none';
+            }
+        }
+
+        function updateLayerOptions() {
+            const selectedRack = rackField.value;
+            fetch(`/get_layers/?rack_name=${selectedRack}`)
+                .then(response => response.json())
+                .then(data => {
+                    layerField.innerHTML = '';
+                    data.layers.forEach(layer => {
+                        const option = document.createElement('option');
+                        option.value = layer;
+                        option.text = layer;
+                        layerField.appendChild(option);
+                    });
+                });
+        }
+
+        function updateSpaceOptions() {
+            const selectedRack = rackField.value;
+            const selectedLayer = layerField.value;
+            fetch(`/get_spaces/?rack_name=${selectedRack}&layer_number=${selectedLayer}`)
+                .then(response => response.json())
+                .then(data => {
+                    spaceField.innerHTML = '';
+                    data.spaces.forEach(space => {
+                        const option = document.createElement('option');
+                        option.value = space;
+                        option.text = space;
+                        spaceField.appendChild(option);
+                    });
+                });
+        }
+
+        function searchSN() {
+            const sn = document.querySelector('input[name="sn"]').value;
+            fetch(`/get_product_location/?sn=${sn}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.location) {
+                        currentLocationInfo.innerHTML = `Current Location: Rack: ${data.location.rack_name}, Layer: ${data.location.layer_number}, Space: ${data.location.space_number || "N/A"}<br>Current Status: ${data.current_status}`;
+                    } else {
+                        currentLocationInfo.innerHTML = 'No location found for this product.';
+                    }
+                });
+        }
+
+        actionFields.forEach(function(field) {
+            field.addEventListener('change', toggleFields);
+        });
+
+        categoryField.addEventListener('change', toggleFields);
+        rackField.addEventListener('change', updateLayerOptions);
+        layerField.addEventListener('change', updateSpaceOptions);
+        searchButton.addEventListener('click', searchSN);
+
+        // Trigger change event on page load to set initial visibility
+        toggleFields();
+        updateLayerOptions();
+    });
+</script>
+{% endblock %}
