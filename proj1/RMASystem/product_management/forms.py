@@ -5,6 +5,7 @@ from .models import Product, Category, Status, Task, ProductTask, StatusTask, Lo
 from django.db import transaction
 from .utilhelpers import PRIORITY_LEVEL_CHOICES
 from django.core.validators import RegexValidator
+from django.forms import modelformset_factory
 
 class BaseForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
@@ -18,15 +19,52 @@ class CategoryForm(BaseForm):
         model = Category
         fields = ['name']
 
+    def clean_name(self):
+        name = self.cleaned_data.get('name')
+        if Category.objects.filter(name=name).exists():
+            raise forms.ValidationError("A category with this name already exists.")
+        return name
+
 class StatusForm(BaseForm):
     class Meta:
         model = Status
         fields = ['name', 'description', 'is_closed']
 
 class TaskForm(BaseForm):
+    status = forms.ModelChoiceField(queryset=Status.objects.all(), required=False, label="Map to Status")
+    is_predefined = forms.BooleanField(required=False, label="Set as Predefined Task")
+    order = forms.IntegerField(required=False, label="Order")
+
     class Meta:
         model = Task
-        fields = ['action', 'description']
+        fields = ['action', 'description', 'status', 'is_predefined', 'order']
+
+    def clean(self):
+        cleaned_data = super().clean()
+        status = cleaned_data.get('status')
+        is_predefined = cleaned_data.get('is_predefined')
+        order = cleaned_data.get('order')
+
+        if status and is_predefined and order is None:
+            raise forms.ValidationError("You must specify an order for the predefined task.")
+
+        return cleaned_data
+
+    @transaction.atomic
+    def save(self, commit=True):
+        task = super().save(commit=False)
+        status = self.cleaned_data.get('status')
+        is_predefined = self.cleaned_data.get('is_predefined')
+        order = self.cleaned_data.get('order')
+
+        if commit:
+            task.save()
+            if status:
+                if is_predefined:
+                    StatusTask.objects.create(status=status, task=task, is_predefined=is_predefined, order=order)
+                else:
+                    StatusTask.objects.create(status=status, task=task, is_predefined=is_predefined)
+        return task
 
 class ProductTaskForm(BaseForm):
     class Meta:
@@ -39,20 +77,67 @@ class StatusTaskForm(BaseForm):
         fields = ['status', 'task', 'is_predefined']
 
 class LocationForm(BaseForm):
-    num_layers = forms.IntegerField(required=False, label="Number of Layers")
-    num_spaces_per_layer = forms.IntegerField(required=False, label="Number of Spaces per Layer")
+    action = forms.ChoiceField(choices=[('create', 'Create'), ('remove', 'Remove')], widget=forms.RadioSelect, label="Action")
+    num_spaces_per_layer = forms.IntegerField(required=False, label="Number of Spaces per Layer", initial=50)
+    remove_layer_number = forms.IntegerField(required=False, label="Layer Number to Remove")
+    remove_rack_name = forms.ModelChoiceField(queryset=Location.objects.values_list('rack_name', flat=True).distinct(), required=False, label="Rack Name to Remove")
 
     class Meta:
         model = Location
-        fields = ['rack_name', 'layer_number', 'space_number', 'num_layers', 'num_spaces_per_layer']
+        fields = ['action', 'rack_name', 'layer_number', 'num_spaces_per_layer', 'remove_layer_number', 'remove_rack_name']
 
+    def clean(self):
+        cleaned_data = super().clean()
+        action = cleaned_data.get('action')
+        rack_name = cleaned_data.get('rack_name')
+        layer_number = cleaned_data.get('layer_number')
+        remove_layer_number = cleaned_data.get('remove_layer_number')
+        remove_rack_name = cleaned_data.get('remove_rack_name')
+
+        if action == 'remove':
+            if remove_layer_number and not rack_name:
+                raise forms.ValidationError("You must specify a rack name when removing a layer.")
+            if remove_layer_number:
+                # Check if there are any locations in this layer that store products
+                if Location.objects.filter(rack_name=rack_name, layer_number=remove_layer_number, product__isnull=False).exists():
+                    raise forms.ValidationError("Cannot remove locations in this layer because some locations store products.")
+            if remove_rack_name:
+                # Check if there are any locations in this rack that store products
+                if Location.objects.filter(rack_name=remove_rack_name, product__isnull=False).exists():
+                    raise forms.ValidationError("Cannot remove locations in this rack because some locations store products.")
+        elif action == 'create':
+            if not rack_name or not layer_number:
+                raise forms.ValidationError("You must specify both a rack name and a layer number when creating locations.")
+            # Check if the rack name and layer already exist
+            if Location.objects.filter(rack_name=rack_name, layer_number=layer_number).exists():
+                raise forms.ValidationError("Locations with the specified rack name and layer already exist.")
+
+        return cleaned_data
+    
+    @transaction.atomic
     def save(self, commit=True):
-        location = super().save(commit=commit)
+        location = super().save(commit=False)
+        action = self.cleaned_data.get('action')
         if commit:
-            num_layers = self.cleaned_data.get('num_layers')
-            num_spaces_per_layer = self.cleaned_data.get('num_spaces_per_layer')
-            if num_layers and num_spaces_per_layer:
-                Location.create_rack_with_layers_and_spaces(location.rack_name, num_layers, num_spaces_per_layer)
+            num_spaces_per_layer = self.cleaned_data.get('num_spaces_per_layer') or 50
+            remove_layer_number = self.cleaned_data.get('remove_layer_number')
+            remove_rack_name = self.cleaned_data.get('remove_rack_name')
+
+            if action == 'remove':
+                if remove_layer_number:
+                    # Remove all locations in the specified layer of the rack
+                    Location.objects.filter(rack_name=location.rack_name, layer_number=remove_layer_number, product__isnull=True).delete()
+                elif remove_rack_name:
+                    # Remove all locations in the specified rack
+                    Location.objects.filter(rack_name=remove_rack_name, product__isnull=True).delete()
+            elif action == 'create':
+                # Create new locations
+                for space in range(1, num_spaces_per_layer + 1):
+                    Location.objects.create(
+                        rack_name=location.rack_name,
+                        layer_number=location.layer_number,
+                        space_number=space
+                    )
         return location
 
 class StatusTransitionForm(forms.ModelForm):
@@ -81,6 +166,13 @@ class StatusTransitionForm(forms.ModelForm):
             cleaned_data['to_status'] = new_status
 
         return cleaned_data
+    
+    @transaction.atomic
+    def save(self, commit=True):
+        status_transition = super().save(commit=False)
+        if commit:
+            status_transition.save()
+        return status_transition
 
 class ProductStatusForm(forms.ModelForm):
     class Meta:
@@ -199,7 +291,6 @@ class ProductForm(BaseForm):
 
         return product
     
-    from django import forms
 
 class CheckinOrUpdateForm(forms.Form):
     ACTION_CHOICES = [
@@ -228,3 +319,10 @@ class CheckinOrUpdateForm(forms.Form):
         self.fields['rack_name'].widget.attrs.update({'class': 'form-control'})
         self.fields['layer_number'].widget.attrs.update({'class': 'form-control'})
         self.fields['space_number'].widget.attrs.update({'class': 'form-control'})
+
+
+# Formsets
+CategoryFormSet = modelformset_factory(Category, form=CategoryForm, extra=1, can_delete=True)
+StatusFormSet = modelformset_factory(Status, form=StatusForm, extra=1, can_delete=True)
+TaskFormSet = modelformset_factory(Task, form=TaskForm, extra=1, can_delete=True)
+LocationFormSet = modelformset_factory(Location, form=LocationForm, extra=1, can_delete=True)

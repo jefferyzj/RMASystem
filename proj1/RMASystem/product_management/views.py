@@ -1,13 +1,18 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.generic import View, ListView, UpdateView, CreateView, FormView
 from django.urls import reverse_lazy
-from .models import Product, ProductTask, Category, Task, Location, Status, StatusTransition, ProductStatus
+from .models import Product, ProductTask, Category, Task, Location, Status, StatusTransition, ProductStatus, StatusTask
 from .forms import ProductForm, ProductTaskForm, TaskForm, LocationForm, StatusTransitionForm, CheckinOrUpdateForm
 from django.core.exceptions import ValidationError
 from django_filters.views import FilterView
 from .filters import ProductFilter
 from django.contrib import messages
 from django.http import JsonResponse
+from .forms import CategoryFormSet, StatusFormSet, TaskFormSet, LocationFormSet
+from .utilhelpers import PRIORITY_LEVEL_CHOICES
+
+def home_view(request):
+    return render(request, 'base.html')
 
 class ProductListView(FilterView):
     model = Product
@@ -27,7 +32,7 @@ class ProductListView(FilterView):
         context = super().get_context_data(**kwargs)
         context['categories'] = Category.objects.all()
         context['locations'] = Location.objects.all()
-        context['priority_levels'] = Product.PRIORITY_LEVEL_CHOICES
+        context['priority_levels'] = PRIORITY_LEVEL_CHOICES
         context['statuses'] = Status.objects.all()
         context['tasks'] = Task.objects.all()
         return context
@@ -210,3 +215,35 @@ class CheckinOrUpdateView(FormView):
         except Product.DoesNotExist:
             data = {'error': 'Product not found'}
         return JsonResponse(data)
+
+class FeatureManageView(View):
+    template_name = 'feature_manage.html'
+
+    def get(self, request):
+        action = request.GET.get('action', 'category')
+        formsets = {
+            'category': CategoryFormSet(queryset=Category.objects.all()),
+            'status': StatusFormSet(queryset=Status.objects.all()),
+            'task': TaskFormSet(queryset=Task.objects.all()),
+            'location': LocationFormSet(queryset=Location.objects.none()),  # Start with an empty queryset
+        }
+        return render(request, self.template_name, {
+            'formsets': formsets,
+            'selected_action': action,
+        })
+
+    def post(self, request):
+        action = request.POST.get('action', 'category')
+        formsets = {
+            'category': CategoryFormSet(request.POST),
+            'status': StatusFormSet(request.POST),
+            'task': TaskFormSet(request.POST),
+            'location': LocationFormSet(request.POST),
+        }
+        if formsets[action].is_valid():
+            formsets[action].save()
+            return redirect('feature_manage')
+        return render(request, self.template_name, {
+            'formsets': formsets,
+            'selected_action': action,
+        })

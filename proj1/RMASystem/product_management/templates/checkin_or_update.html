@@ -2,13 +2,46 @@
 
 {% block title %}Check-in or Update Product{% endblock %}
 
+{% block extra_head %}
+<style>
+    .hidden {
+        display: none;
+    }
+    .messages {
+        list-style-type: none;
+        padding: 0;
+    }
+    .messages li {
+        margin: 5px 0;
+        padding: 10px;
+        border-radius: 5px;
+    }
+    .messages .error {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+    .messages .success {
+        background-color: #d4edda;
+        color: #155724;
+    }
+    .messages .warning {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+    .messages .info {
+        background-color: #d1ecf1;
+        color: #0c5460;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <h2>Check-in or Update Product</h2>
 
 {% if messages %}
     <ul class="messages">
         {% for message in messages %}
-            <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
+            <li class="{{ message.tags }}">{{ message }}</li>
         {% endfor %}
     </ul>
 {% endif %}
@@ -17,16 +50,16 @@
     {% csrf_token %}
     {{ form.as_p }}
 
-    <div id="checkin_new_fields" style="display: none;">
+    <div id="checkin_new_fields" class="hidden">
         {{ form.category.label_tag }} {{ form.category }}
         {{ form.sn.label_tag }} {{ form.sn }}
-        <div id="pg520_fields" style="display: none;">
+        <div id="pg520_fields" class="hidden">
             {{ form.short_12V_48V.label_tag }} {{ form.short_12V_48V }}
             {{ form.priority_level.label_tag }} {{ form.priority_level }}
         </div>
     </div>
 
-    <div id="checkin_location_fields" style="display: none;">
+    <div id="checkin_location_fields" class="hidden">
         {{ form.sn.label_tag }} {{ form.sn }}
         <button type="button" id="search_sn">Search</button>
         <div id="current_location_info"></div>
@@ -54,20 +87,20 @@
         function toggleFields() {
             const selectedAction = document.querySelector('input[name="action"]:checked').value;
             if (selectedAction === 'checkin_new') {
-                checkinNewFields.style.display = 'block';
-                checkinLocationFields.style.display = 'none';
+                checkinNewFields.classList.remove('hidden');
+                checkinLocationFields.classList.add('hidden');
                 const selectedCategory = categoryField.options[categoryField.selectedIndex].text;
                 if (selectedCategory === 'PG520') {
-                    pg520Fields.style.display = 'block';
+                    pg520Fields.classList.remove('hidden');
                 } else {
-                    pg520Fields.style.display = 'none';
+                    pg520Fields.classList.add('hidden');
                 }
             } else if (selectedAction === 'checkin_location') {
-                checkinNewFields.style.display = 'none';
-                checkinLocationFields.style.display = 'block';
+                checkinNewFields.classList.add('hidden');
+                checkinLocationFields.classList.remove('hidden');
             } else {
-                checkinNewFields.style.display = 'none';
-                checkinLocationFields.style.display = 'none';
+                checkinNewFields.classList.add('hidden');
+                checkinLocationFields.classList.add('hidden');
             }
         }
 

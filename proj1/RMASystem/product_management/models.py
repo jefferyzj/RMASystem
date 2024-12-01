@@ -15,6 +15,7 @@ class Category(models.Model):
 
     def __str__(self):
         return self.name
+
 class Location(models.Model):
     rack_name = models.CharField(max_length=100)
     layer_number = models.IntegerField()
@@ -408,3 +409,8 @@ class Product(TimeStampedModel, SoftDeletableModel):
     #TODO: (checked)add checkinorupdateview and its form, and the checkinorupdate.html, also update location model to map to the product.
     #TODO: still not finish the productstatustaskeditview and its form, and the product_status_task_edit.html
     #TODO: still need to develop the page to add location, add statuses and it transition, add tasks and status task, and add category.
+
+
+    #1. not finish productstatustaskeditview and its form, and the product_status_task_edit.html
+    #2. modify the view of checkinorupdateview, and the checkinorupdate.html
+    #3. debug the products.html and product_detail.html.

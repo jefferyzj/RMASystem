@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Feature Manage{% endblock %}
+
+{% block extra_head %}
+<script>
+    function updatePredefinedTasks(statusId) {
+        fetch(`/feature_manage/get_predefined_tasks/${statusId}/`)
+            .then(response => response.json())
+            .then(data => {
+                const predefinedTasksContainer = document.getElementById('predefined-tasks-container');
+                predefinedTasksContainer.innerHTML = '';
+                data.predefined_tasks.forEach(task => {
+                    const taskElement = document.createElement('div');
+                    taskElement.innerText = `Task: ${task.action}, Order: ${task.order}`;
+                    predefinedTasksContainer.appendChild(taskElement);
+                });
+            });
+    }
+
+    function toggleOrderField() {
+        const statusField = document.getElementById('id_status');
+        const isPredefinedField = document.getElementById('id_is_predefined');
+        const orderField = document.getElementById('id_order');
+        if (statusField.value && isPredefinedField.checked) {
+            orderField.parentElement.style.display = 'block';
+        } else {
+            orderField.parentElement.style.display = 'none';
+        }
+    }
+
+    function toggleFormSections() {
+        const selectedAction = document.querySelector('input[name="action"]:checked').value;
+        document.querySelectorAll('.form-section').forEach(section => {
+            section.style.display = 'none';
+        });
+        document.getElementById(`${selectedAction}-form-section`).style.display = 'block';
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const statusField = document.getElementById('id_status');
+        const isPredefinedField = document.getElementById('id_is_predefined');
+        const actionRadios = document.querySelectorAll('input[name="action"]');
+
+        statusField.addEventListener('change', function() {
+            updatePredefinedTasks(this.value);
+            toggleOrderField();
+        });
+        isPredefinedField.addEventListener('change', toggleOrderField);
+        actionRadios.forEach(radio => {
+            radio.addEventListener('change', toggleFormSections);
+        });
+
+        toggleOrderField();
+        toggleFormSections();
+    });
+</script>
+{% endblock %}
+
+{% block content %}
+<h1>Feature Manage</h1>
+<form method="get">
+    <label><input type="radio" name="action" value="category" {% if selected_action == 'category' %}checked{% endif %}> Manage Categories</label>
+    <label><input type="radio" name="action" value="status" {% if selected_action == 'status' %}checked{% endif %}> Manage Statuses</label>
+    <label><input type="radio" name="action" value="task" {% if selected_action == 'task' %}checked{% endif %}> Manage Tasks</label>
+    <label><input type="radio" name="action" value="location" {% if selected_action == 'location' %}checked{% endif %}> Manage Locations</label>
+    <button type="submit">Select</button>
+</form>
+
+<form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="{{ selected_action }}">
+
+    <div id="category-form-section" class="form-section">
+        {{ formsets.category.management_form }}
+        <table>
+            {% for form in formsets.category %}
+                <tr>
+                    <td>{{ form.name }}</td>
+                    <td>{{ form.DELETE }}</td>
+                </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <div id="status-form-section" class="form-section">
+        {{ formsets.status.management_form }}
+        <table>
+            {% for form in formsets.status %}
+                <tr>
+                    <td>{{ form.name }}</td>
+                    <td>{{ form.description }}</td>
+                    <td>{{ form.DELETE }}</td>
+                </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <div id="task-form-section" class="form-section">
+        {{ formsets.task.management_form }}
+        <table>
+            {% for form in formsets.task %}
+                <tr>
+                    <td>{{ form.action }}</td>
+                    <td>{{ form.description }}</td>
+                    <td>{{ form.status }}</td>
+                    <td>{{ form.is_predefined }}</td>
+                    <td class="hidden">{{ form.order }}</td>
+                    <td>{{ form.DELETE }}</td>
+                </tr>
+            {% endfor %}
+        </table>
+        <div id="predefined-tasks-container"></div>
+    </div>
+
+    <div id="location-form-section" class="form-section">
+        {{ formsets.location.management_form }}
+        <table>
+            {% for form in formsets.location %}
+                <tr>
+                    <td>{{ form.action }}</td>
+                    <td>{{ form.rack_name }}</td>
+                    <td>{{ form.layer_number }}</td>
+                    <td>{{ form.num_spaces_per_layer }}</td>
+                    <td>{{ form.remove_layer_number }}</td>
+                    <td>{{ form.remove_rack_name }}</td>
+                    <td>{{ form.DELETE }}</td>
+                </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <button type="submit">Save</button>
+</form>
+{% endblock %}
