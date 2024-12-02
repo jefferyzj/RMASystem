@@ -4,31 +4,6 @@
 
 {% block extra_head %}
 <script>
-    function updatePredefinedTasks(statusId) {
-        fetch(`/feature_manage/get_predefined_tasks/${statusId}/`)
-            .then(response => response.json())
-            .then(data => {
-                const predefinedTasksContainer = document.getElementById('predefined-tasks-container');
-                predefinedTasksContainer.innerHTML = '';
-                data.predefined_tasks.forEach(task => {
-                    const taskElement = document.createElement('div');
-                    taskElement.innerText = `Task: ${task.action}, Order: ${task.order}`;
-                    predefinedTasksContainer.appendChild(taskElement);
-                });
-            });
-    }
-
-    function toggleOrderField() {
-        const statusField = document.getElementById('id_status');
-        const isPredefinedField = document.getElementById('id_is_predefined');
-        const orderField = document.getElementById('id_order');
-        if (statusField.value && isPredefinedField.checked) {
-            orderField.parentElement.style.display = 'block';
-        } else {
-            orderField.parentElement.style.display = 'none';
-        }
-    }
-
     function toggleFormSections() {
         const selectedAction = document.querySelector('input[name="action"]:checked').value;
         document.querySelectorAll('.form-section').forEach(section => {
@@ -37,22 +12,30 @@
         document.getElementById(`${selectedAction}-form-section`).style.display = 'block';
     }
 
+    function toggleCategoryAction() {
+        const selectedCategoryAction = document.querySelector('input[name="category_action"]:checked').value;
+        document.querySelectorAll('.category-action-section').forEach(section => {
+            section.style.display = 'none';
+        });
+        document.getElementById(`${selectedCategoryAction}-category-section`).style.display = 'block';
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
-        const statusField = document.getElementById('id_status');
-        const isPredefinedField = document.getElementById('id_is_predefined');
         const actionRadios = document.querySelectorAll('input[name="action"]');
-
-        statusField.addEventListener('change', function() {
-            updatePredefinedTasks(this.value);
-            toggleOrderField();
-        });
-        isPredefinedField.addEventListener('change', toggleOrderField);
         actionRadios.forEach(radio => {
-            radio.addEventListener('change', toggleFormSections);
+            radio.addEventListener('change', function() {
+                this.form.submit();
+            });
         });
 
-        toggleOrderField();
+        const categoryActionRadios = document.querySelectorAll('input[name="category_action"]');
+        categoryActionRadios.forEach(radio => {
+            radio.addEventListener('change', toggleCategoryAction);
+        });
+
+        // Trigger change event on page load to set initial visibility
         toggleFormSections();
+        toggleCategoryAction();
     });
 </script>
 {% endblock %}
@@ -64,7 +47,6 @@
     <label><input type="radio" name="action" value="status" {% if selected_action == 'status' %}checked{% endif %}> Manage Statuses</label>
     <label><input type="radio" name="action" value="task" {% if selected_action == 'task' %}checked{% endif %}> Manage Tasks</label>
     <label><input type="radio" name="action" value="location" {% if selected_action == 'location' %}checked{% endif %}> Manage Locations</label>
-    <button type="submit">Select</button>
 </form>
 
 <form method="post">
@@ -72,15 +54,23 @@
     <input type="hidden" name="action" value="{{ selected_action }}">
 
     <div id="category-form-section" class="form-section">
-        {{ formsets.category.management_form }}
-        <table>
-            {% for form in formsets.category %}
-                <tr>
-                    <td>{{ form.name }}</td>
-                    <td>{{ form.DELETE }}</td>
-                </tr>
-            {% endfor %}
-        </table>
+        <label><input type="radio" name="category_action" value="add" checked> Add Category</label>
+        <label><input type="radio" name="category_action" value="delete"> Delete Category</label>
+
+        <div id="add-category-section" class="category-action-section">
+            <h3>Add Category</h3>
+            {{ category_form.name.label_tag }} {{ category_form.name }}
+        </div>
+
+        <div id="delete-category-section" class="category-action-section" style="display: none;">
+            <h3>Delete Category</h3>
+            {% if categories_exist %}
+                {{ category_form.category.label_tag }} {{ category_form.category }}
+                <p id="category-product-count"></p>
+            {% else %}
+                <p>No categories available for deletion.</p>
+            {% endif %}
+        </div>
     </div>
 
     <div id="status-form-section" class="form-section">
@@ -88,8 +78,8 @@
         <table>
             {% for form in formsets.status %}
                 <tr>
-                    <td>{{ form.name }}</td>
-                    <td>{{ form.description }}</td>
+                    <td>{{ form.name.label_tag }} {{ form.name }}</td>
+                    <td>{{ form.description.label_tag }} {{ form.description }}</td>
                     <td>{{ form.DELETE }}</td>
                 </tr>
             {% endfor %}
@@ -101,11 +91,11 @@
         <table>
             {% for form in formsets.task %}
                 <tr>
-                    <td>{{ form.action }}</td>
-                    <td>{{ form.description }}</td>
-                    <td>{{ form.status }}</td>
-                    <td>{{ form.is_predefined }}</td>
-                    <td class="hidden">{{ form.order }}</td>
+                    <td>{{ form.action.label_tag }} {{ form.action }}</td>
+                    <td>{{ form.description.label_tag }} {{ form.description }}</td>
+                    <td>{{ form.status.label_tag }} {{ form.status }}</td>
+                    <td>{{ form.is_predefined.label_tag }} {{ form.is_predefined }}</td>
+                    <td class="hidden">{{ form.order.label_tag }} {{ form.order }}</td>
                     <td>{{ form.DELETE }}</td>
                 </tr>
             {% endfor %}
@@ -118,12 +108,12 @@
         <table>
             {% for form in formsets.location %}
                 <tr>
-                    <td>{{ form.action }}</td>
-                    <td>{{ form.rack_name }}</td>
-                    <td>{{ form.layer_number }}</td>
-                    <td>{{ form.num_spaces_per_layer }}</td>
-                    <td>{{ form.remove_layer_number }}</td>
-                    <td>{{ form.remove_rack_name }}</td>
+                    <td>{{ form.action.label_tag }} {{ form.action }}</td>
+                    <td>{{ form.rack_name.label_tag }} {{ form.rack_name }}</td>
+                    <td>{{ form.layer_number.label_tag }} {{ form.layer_number }}</td>
+                    <td>{{ form.num_spaces_per_layer.label_tag }} {{ form.num_spaces_per_layer }}</td>
+                    <td>{{ form.remove_layer_number.label_tag }} {{ form.remove_layer_number }}</td>
+                    <td>{{ form.remove_rack_name.label_tag }} {{ form.remove_rack_name }}</td>
                     <td>{{ form.DELETE }}</td>
                 </tr>
             {% endfor %}

@@ -414,3 +414,4 @@ class Product(TimeStampedModel, SoftDeletableModel):
     #1. not finish productstatustaskeditview and its form, and the product_status_task_edit.html
     #2. modify the view of checkinorupdateview, and the checkinorupdate.html
     #3. debug the products.html and product_detail.html.
+    #4. add 

@@ -15,14 +15,25 @@ class BaseForm(forms.ModelForm):
         self.helper.add_input(Submit('submit', 'Submit'))
 
 class CategoryForm(BaseForm):
+    category = forms.ModelChoiceField(queryset=Category.objects.all(), required=False, label="Select Category to Delete")
+
     class Meta:
         model = Category
-        fields = ['name']
+        fields = ['name', 'category']
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['category'].label_from_instance = self.label_from_instance
+
+    def label_from_instance(self, obj):
+        product_count = obj.products.count()
+        return f"{obj.name} ({product_count} products)"
+    
     def clean_name(self):
         name = self.cleaned_data.get('name')
+        # Ensure the category name is unique
         if Category.objects.filter(name=name).exists():
-            raise forms.ValidationError("A category with this name already exists.")
+            raise forms.ValidationError(f'A category with the name "{name}" already exists.')
         return name
 
 class StatusForm(BaseForm):
@@ -321,8 +332,8 @@ class CheckinOrUpdateForm(forms.Form):
         self.fields['space_number'].widget.attrs.update({'class': 'form-control'})
 
 
-# Formsets
-CategoryFormSet = modelformset_factory(Category, form=CategoryForm, extra=1, can_delete=True)
+# Formsets for featureManageView
+CategoryFormSet = modelformset_factory(Category, form=CategoryForm, extra=1, can_delete=False)
 StatusFormSet = modelformset_factory(Status, form=StatusForm, extra=1, can_delete=True)
 TaskFormSet = modelformset_factory(Task, form=TaskForm, extra=1, can_delete=True)
 LocationFormSet = modelformset_factory(Location, form=LocationForm, extra=1, can_delete=True)

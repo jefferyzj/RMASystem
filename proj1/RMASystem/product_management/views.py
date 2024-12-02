@@ -2,7 +2,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.views.generic import View, ListView, UpdateView, CreateView, FormView
 from django.urls import reverse_lazy
 from .models import Product, ProductTask, Category, Task, Location, Status, StatusTransition, ProductStatus, StatusTask
-from .forms import ProductForm, ProductTaskForm, TaskForm, LocationForm, StatusTransitionForm, CheckinOrUpdateForm
+from .forms import ProductForm, ProductTaskForm, TaskForm, LocationForm, StatusTransitionForm, CheckinOrUpdateForm, CategoryForm
 from django.core.exceptions import ValidationError
 from django_filters.views import FilterView
 from .filters import ProductFilter
@@ -225,11 +225,15 @@ class FeatureManageView(View):
             'category': CategoryFormSet(queryset=Category.objects.all()),
             'status': StatusFormSet(queryset=Status.objects.all()),
             'task': TaskFormSet(queryset=Task.objects.all()),
-            'location': LocationFormSet(queryset=Location.objects.none()),  # Start with an empty queryset
+            'location': LocationFormSet(queryset=Location.objects.all()),  # Ensure the queryset is not empty
         }
+        category_form = CategoryForm()
+        categories_exist = Category.objects.exists()
         return render(request, self.template_name, {
             'formsets': formsets,
             'selected_action': action,
+            'category_form': category_form,
+            'categories_exist': categories_exist,
         })
 
     def post(self, request):
@@ -240,10 +244,31 @@ class FeatureManageView(View):
             'task': TaskFormSet(request.POST),
             'location': LocationFormSet(request.POST),
         }
+        category_form = CategoryForm(request.POST)
+
+        if action == 'category':
+            category_action = request.POST.get('category_action')
+            if category_action == 'add':
+                if category_form.is_valid():
+                    category_form.save()
+                    messages.success(request, 'Category added successfully.')
+                    return redirect('feature_manage')
+            elif category_action == 'delete':
+                category = get_object_or_404(Category, pk=request.POST.get('category'))
+                product_count = Product.objects.filter(category=category).count()
+                if product_count > 0:
+                    messages.error(request, f'Cannot delete category "{category.name}" because it has {product_count} products.')
+                else:
+                    category.delete()
+                    messages.success(request, 'Category deleted successfully.')
+                return redirect('feature_manage')
+
         if formsets[action].is_valid():
             formsets[action].save()
             return redirect('feature_manage')
         return render(request, self.template_name, {
             'formsets': formsets,
             'selected_action': action,
+            'category_form': category_form,
+            'categories_exist': Category.objects.exists(),
         })
