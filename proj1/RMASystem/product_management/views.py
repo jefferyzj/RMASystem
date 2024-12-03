@@ -258,19 +258,20 @@ class FeatureManageView(View):
             if category_action == 'add':
                 if category_form.is_valid():
                     category_form.save()
+                    print("category added successfully")
                     messages.success(request, 'Category added successfully.')
-                    return redirect('feature_manage')
                 else:
                     print(category_form.errors)  # Debug statement to print form errors
             elif category_action == 'delete':
                 category = get_object_or_404(Category, pk=request.POST.get('category'))
                 product_count = Product.objects.filter(category=category).count()
+                print(f"The category- {category} with product_count- {product_count}")
                 if product_count > 0:
                     messages.error(request, f'Cannot delete category "{category.name}" because it has {product_count} products.')
                 else:
+                    print(f"category- {category} deleted successfully")
                     category.delete()
                     messages.success(request, 'Category deleted successfully.')
-                return redirect('feature_manage')
 
         if action == 'task':
             task_action = request.POST.get('task_action')
@@ -300,26 +301,25 @@ class FeatureManageView(View):
                             messages.success(request, 'Task added and mapped to status successfully.')
                     else:
                         messages.success(request, 'Task added successfully.')
-                    return redirect('feature_manage')
                 else:
                     print(task_form.errors)  # Debug statement to print form errors
             elif task_action == 'delete':
-                task_id = request.POST.get('existingTasksSet')
-                if task_id:
-                    task = get_object_or_404(Task, pk=task_id)
-                    task.delete()
-                    messages.success(request, 'Task deleted successfully.')
-                    return redirect('feature_manage')
+                selected_task = request.POST.get('existing_tasks')
+                if selected_task:
+                    if selected_task.startswith('status_task_'):
+                        status_task_id = int(selected_task.split('_')[2])
+                        status_task = get_object_or_404(StatusTask, pk=status_task_id)
+                        status_task.delete()
+                        messages.success(request, 'StatusTask deleted successfully.')
+                    elif selected_task.startswith('task_'):
+                        task_id = int(selected_task.split('_')[1])
+                        task = get_object_or_404(Task, pk=task_id)
+                        task.delete()
+                        messages.success(request, 'Task deleted successfully.')
 
         if action in formsets and formsets[action].is_valid():
             formsets[action].save()
             messages.success(request, f'{action.capitalize()}s updated successfully.')
-            return redirect('feature_manage')
-        else:
-            if action not in formsets:
-                print(f"Invalid action: {action}")  # Debug statement to print invalid action
-            else:
-                print(formsets[action].errors)  # Debug statement to print formset errors
 
         return render(request, self.template_name, {
             'formsets': formsets,

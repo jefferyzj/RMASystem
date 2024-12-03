@@ -118,12 +118,34 @@
         toggleCategoryAction();
         toggleTaskAction();
         toggleOrderField();
+
+        // Display messages and handle redirection
+        const messageContainer = document.querySelector('.messages');
+        if (messageContainer && messageContainer.children.length > 0) {
+            setTimeout(() => {
+                messageContainer.style.display = 'none';
+                window.location.href = "{% url 'feature_manage' %}";
+            }, 3000);
+        }
     });
 </script>
 {% endblock %}
 
 {% block content %}
 <h1>Feature Manage</h1>
+
+<div id="message-container">
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+        <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
 <form method="get">
     <label><input type="radio" name="form_action" value="category" {% if selected_action == 'category' %}checked{% endif %}> Manage Categories</label>
     <label><input type="radio" name="form_action" value="status" {% if selected_action == 'status' %}checked{% endif %}> Manage Statuses</label>
@@ -132,19 +154,25 @@
 </form>
 
 <div id="category-form-section" class="form-section" {% if selected_action != 'category' %}style="display: none;"{% endif %}>
-    <form method="post">
+    <label><input type="radio" name="category_action" value="add" checked> Add Category</label>
+    <label><input type="radio" name="category_action" value="delete"> Delete Category</label>
+
+    <form method="post" id="add-category-form">
         {% csrf_token %}
         <input type="hidden" name="form_action" value="category">
-        <label><input type="radio" name="category_action" value="add" checked> Add Category</label>
-        <label><input type="radio" name="category_action" value="delete"> Delete Category</label>
-
+        <input type="hidden" name="category_action" value="add">
         <div id="add-category-section" class="category-action-section">
             <h3>Add Category</h3>
             <label for="{{ category_form.name.id_for_label }}">{{ category_form.name.label }}</label>
             {{ category_form.name }}
             <button type="submit">Save to add category</button>
         </div>
+    </form>
 
+    <form method="post" id="delete-category-form">
+        {% csrf_token %}
+        <input type="hidden" name="form_action" value="category">
+        <input type="hidden" name="category_action" value="delete">
         <div id="delete-category-section" class="category-action-section" style="display: none;">
             <h3>Delete Category</h3>
             {% if categories_exist %}
@@ -159,7 +187,7 @@
 </div>
 
 <div id="task-form-section" class="form-section" {% if selected_action != 'task' %}style="display: none;"{% endif %}>
-    <form method="post">
+    <form method="post" id="add-task-form">
         {% csrf_token %}
         <input type="hidden" name="form_action" value="task">
         <label><input type="radio" name="task_action" value="add" checked> Add Task</label>
@@ -183,11 +211,15 @@
             <ul id="predefined-tasks-list"></ul>
             <button type="submit" name="task_action" value="add">Save to add task</button>
         </div>
+    </form>
 
+    <form method="post" id="delete-task-form">
+        {% csrf_token %}
+        <input type="hidden" name="form_action" value="task">
         <div id="delete-task-section" class="task-action-section" style="display: none;">
             <h3>Delete Task</h3>
-            <label for="{{ status_task_form.existing_predefined_tasks_under_status.id_for_label }}">{{ status_task_form.existing_predefined_tasks_under_status.label }}</label>
-            {{ status_task_form.existing_predefined_tasks_under_status }}
+            <label for="{{ status_task_form.existing_tasks.id_for_label }}">{{ status_task_form.existing_tasks.label }}</label>
+            {{ status_task_form.existing_tasks }}
             <button type="submit" name="task_action" value="delete">Save to delete task</button>
         </div>
     </form>

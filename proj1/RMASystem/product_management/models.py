@@ -89,7 +89,7 @@ class StatusTask(OrderedModel):
     status = models.ForeignKey(Status, related_name='status_tasks', on_delete=models.CASCADE)
     task = models.ForeignKey(Task, related_name='task_statuses', on_delete=models.CASCADE)
     is_predefined = models.BooleanField(default=True, help_text="Indicates if the task is predefined for this status")
-    order = models.PositiveIntegerField(default=0, editable=True, db_index=True)
+    order = models.PositiveIntegerField(default=1, editable=True, db_index=True)
     
     order_with_respect_to = 'status'
 
@@ -99,6 +99,11 @@ class StatusTask(OrderedModel):
             models.UniqueConstraint(fields=['status', 'task'], name='unique_status_task')
         ]
     
+    def clean(self):
+        super().clean()
+        if self.is_predefined:
+            if StatusTask.objects.filter(status=self.status, order=self.order).exclude(pk=self.pk).exists():
+                raise ValidationError(f'The order {self.order} is already taken for the status {self.status.name}.')
 
     def save(self, *args, **kwargs):
         if not self.is_predefined:

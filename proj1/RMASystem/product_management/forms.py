@@ -62,11 +62,11 @@ class StatusTaskForm(BaseForm):
     task = forms.ModelChoiceField(queryset=Task.objects.all(), required=True, label="Select Task")
     is_predefined = forms.BooleanField(required=False, label="Set as Predefined Task")
     order = forms.ChoiceField(required=False, label="Order")
-    existing_predefined_tasks_under_status = forms.ModelChoiceField(queryset=StatusTask.objects.none(), required=False, label="Existing Predefined Tasks Under Status")
+    existing_tasks = forms.ChoiceField(required=False, label="Select Task to Delete")
 
     class Meta:
         model = StatusTask
-        fields = ['status', 'task', 'is_predefined', 'order', 'existing_predefined_tasks_under_status']
+        fields = ['status', 'task', 'is_predefined', 'order', 'existing_tasks']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -74,16 +74,27 @@ class StatusTaskForm(BaseForm):
             try:
                 status_id = int(self.data.get('status'))
                 predefined_tasks = StatusTask.objects.filter(status_id=status_id, is_predefined=True).order_by('order')
-                self.fields['existing_predefined_tasks_under_status'].queryset = predefined_tasks
-                max_order = predefined_tasks.count() + 1
-                self.fields['order'].choices = [(i, i) for i in range(1, max_order + 1)]
+                self.fields['order'].choices = [(i, i) for i in range(1, predefined_tasks.count() + 2)]
             except (ValueError, TypeError):
                 pass  # invalid input from the client; ignore and fallback to empty queryset
         elif self.instance.pk:
             predefined_tasks = StatusTask.objects.filter(status=self.instance.status, is_predefined=True).order_by('order')
-            self.fields['existing_predefined_tasks_under_status'].queryset = predefined_tasks
-            max_order = predefined_tasks.count() + 1
-            self.fields['order'].choices = [(i, i) for i in range(1, max_order + 1)]
+            self.fields['order'].choices = [(i, i) for i in range(1, predefined_tasks.count() + 2)]
+
+        # Customize the choices for existing tasks to include status and predefined information
+        self.fields['existing_tasks'].choices = self.get_existing_tasks_choices()
+
+    def get_existing_tasks_choices(self):
+        choices = []
+        status_tasks = StatusTask.objects.all()
+        for status_task in status_tasks:
+            label = f"{status_task.task.task_name} - Status: {status_task.status.name} (Predefined: {status_task.is_predefined})"
+            choices.append((f"status_task_{status_task.pk}", label))
+        tasks_without_status = Task.objects.filter(task_statuses__isnull=True)
+        for task in tasks_without_status:
+            label = f"{task.task_name} (No status mapping)"
+            choices.append((f"task_{task.pk}", label))
+        return choices
 
     def clean(self):
         cleaned_data = super().clean()
