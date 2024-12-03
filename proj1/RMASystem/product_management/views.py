@@ -2,13 +2,13 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.views.generic import View, ListView, UpdateView, CreateView, FormView
 from django.urls import reverse_lazy
 from .models import Product, ProductTask, Category, Task, Location, Status, StatusTransition, ProductStatus, StatusTask
-from .forms import ProductForm, ProductTaskForm, TaskForm, LocationForm, StatusTransitionForm, CheckinOrUpdateForm, CategoryForm
+from .forms import ProductForm, ProductTaskForm, TaskForm, LocationForm, StatusTransitionForm, CheckinOrUpdateForm, CategoryForm, StatusTaskForm
 from django.core.exceptions import ValidationError
 from django_filters.views import FilterView
 from .filters import ProductFilter
 from django.contrib import messages
 from django.http import JsonResponse
-from .forms import CategoryFormSet, StatusFormSet, TaskFormSet, LocationFormSet
+from .forms import CategoryFormSet, StatusFormSet, TaskFormSet, LocationFormSet, StatusTaskFormSet
 from .utilhelpers import PRIORITY_LEVEL_CHOICES
 
 def home_view(request):
@@ -229,12 +229,14 @@ class FeatureManageView(View):
         }
         category_form = CategoryForm()
         task_form = TaskForm()
+        status_task_form = StatusTaskForm()
         categories_exist = Category.objects.exists()
         return render(request, self.template_name, {
             'formsets': formsets,
             'selected_action': action,
             'category_form': category_form,
             'task_form': task_form,
+            'status_task_form': status_task_form,
             'categories_exist': categories_exist,
         })
 
@@ -249,6 +251,7 @@ class FeatureManageView(View):
         }
         category_form = CategoryForm(request.POST)
         task_form = TaskForm(request.POST)
+        status_task_form = StatusTaskForm(request.POST)
 
         if action == 'category':
             category_action = request.POST.get('category_action')
@@ -273,8 +276,30 @@ class FeatureManageView(View):
             task_action = request.POST.get('task_action')
             if task_action == 'add':
                 if task_form.is_valid():
-                    task_form.save()
-                    messages.success(request, 'Task added successfully.')
+                    task = task_form.save(commit=False)
+                    existing_status = request.POST.get('status')
+                    is_predefined = request.POST.get('is_predefined')
+                    order = request.POST.get('order')
+                    task.save()
+                    print("task added successfully")
+                    if existing_status:
+                        if is_predefined and order:
+                            status_task_form = StatusTaskForm({
+                                'status': existing_status,
+                                'task': task.pk,
+                                'is_predefined': is_predefined,
+                                'order': order
+                            })
+                            if status_task_form.is_valid():
+                                status_task_form.save()
+                                messages.success(request, 'Task and StatusTask added successfully.')
+                            else:
+                                print(status_task_form.errors)  # Debug statement to print form errors
+                        else:
+                            StatusTask.objects.create(status_id=existing_status, task=task, is_predefined=False)
+                            messages.success(request, 'Task added and mapped to status successfully.')
+                    else:
+                        messages.success(request, 'Task added successfully.')
                     return redirect('feature_manage')
                 else:
                     print(task_form.errors)  # Debug statement to print form errors
@@ -301,6 +326,7 @@ class FeatureManageView(View):
             'selected_action': action,
             'category_form': category_form,
             'task_form': task_form,
+            'status_task_form': status_task_form,
             'categories_exist': Category.objects.exists(),
         })
     
@@ -311,3 +337,12 @@ def get_predefined_tasks(request):
         tasks_list = list(tasks)
         return JsonResponse({'tasks': tasks_list})
     return JsonResponse({'tasks': []})
+
+def get_order_choices(request):
+    status_id = request.GET.get('status_id')
+    if status_id:
+        predefined_tasks = StatusTask.objects.filter(status_id=status_id, is_predefined=True).order_by('order')
+        max_order = predefined_tasks.count() + 1
+        choices = [{'value': i, 'display': i} for i in range(1, max_order + 1)]
+        return JsonResponse({'choices': choices})
+    return JsonResponse({'choices': []})

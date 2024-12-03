@@ -47,6 +47,9 @@ class Status(TimeStampedModel):
     def get_possible_next_statuses(self):
         transitions = StatusTransition.objects.filter(from_status=self).select_related('to_status').order_by('created')
         return [transition.to_status for transition in transitions]
+    @classmethod
+    def get_existing_statuses(cls):
+        return cls.objects.all()
 
 class StatusTransition(TimeStampedModel):
     from_status = models.ForeignKey(Status, related_name='transitions_from', on_delete=models.CASCADE)
@@ -86,7 +89,7 @@ class StatusTask(OrderedModel):
     status = models.ForeignKey(Status, related_name='status_tasks', on_delete=models.CASCADE)
     task = models.ForeignKey(Task, related_name='task_statuses', on_delete=models.CASCADE)
     is_predefined = models.BooleanField(default=True, help_text="Indicates if the task is predefined for this status")
-    order = models.PositiveIntegerField(default=0, editable=False, db_index=True)
+    order = models.PositiveIntegerField(default=0, editable=True, db_index=True)
     
     order_with_respect_to = 'status'
 
@@ -106,16 +109,7 @@ class StatusTask(OrderedModel):
 
     def insert_at_order(self):
         predefined_tasks = StatusTask.objects.filter(status=self.status, is_predefined=True).order_by('order')
-        head_order = 1
-        for task in predefined_tasks:
-            if task.order >= self.order:
-                task.order += 1
-                
-            else:
-                task.order = head_order
-                head_order += 1
-            task.save(update_fields=['order'])
-
+        predefined_tasks.filter(order__gte=self.order).update(order=models.F('order') + 1)
 
 
     def __str__(self):

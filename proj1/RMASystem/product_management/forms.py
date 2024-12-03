@@ -41,56 +41,76 @@ class StatusForm(BaseForm):
         model = Status
         fields = ['name', 'description', 'is_closed']
 
-class TaskForm(forms.ModelForm):
+class TaskForm(BaseForm):
     task_name = forms.CharField(max_length=100, label="Task Name")
     description = forms.CharField(widget=forms.Textarea, required=False, label="Description")
-    existing_status = forms.ModelChoiceField(queryset=Status.objects.all(), required=False, label="Map to Status")
-    is_predefined = forms.BooleanField(required=False, label="Set as Predefined Task")
-    order = forms.IntegerField(required=False, label="Order")
-    existing_predefined_tasks_under_status = forms.ModelChoiceField(queryset=Task.objects.all(), required=False, label="Select Task to Delete")
 
     class Meta:
         model = Task
-        fields = ['task_name', 'description', 'existing_status', 'is_predefined', 'order', 'existing_predefined_tasks_under_status']
+        fields = ['task_name', 'description']
+
+    @transaction.atomic
+    def save(self, commit=True):
+        task = super().save(commit=False)
+        if commit:
+            task.save()
+        return task
+
+
+class StatusTaskForm(BaseForm):
+    status = forms.ModelChoiceField(queryset=Status.get_existing_statuses(), required=True, label="Map to Status")
+    task = forms.ModelChoiceField(queryset=Task.objects.all(), required=True, label="Select Task")
+    is_predefined = forms.BooleanField(required=False, label="Set as Predefined Task")
+    order = forms.ChoiceField(required=False, label="Order")
+    existing_predefined_tasks_under_status = forms.ModelChoiceField(queryset=StatusTask.objects.none(), required=False, label="Existing Predefined Tasks Under Status")
+
+    class Meta:
+        model = StatusTask
+        fields = ['status', 'task', 'is_predefined', 'order', 'existing_predefined_tasks_under_status']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if 'status' in self.data:
+            try:
+                status_id = int(self.data.get('status'))
+                predefined_tasks = StatusTask.objects.filter(status_id=status_id, is_predefined=True).order_by('order')
+                self.fields['existing_predefined_tasks_under_status'].queryset = predefined_tasks
+                max_order = predefined_tasks.count() + 1
+                self.fields['order'].choices = [(i, i) for i in range(1, max_order + 1)]
+            except (ValueError, TypeError):
+                pass  # invalid input from the client; ignore and fallback to empty queryset
+        elif self.instance.pk:
+            predefined_tasks = StatusTask.objects.filter(status=self.instance.status, is_predefined=True).order_by('order')
+            self.fields['existing_predefined_tasks_under_status'].queryset = predefined_tasks
+            max_order = predefined_tasks.count() + 1
+            self.fields['order'].choices = [(i, i) for i in range(1, max_order + 1)]
 
     def clean(self):
         cleaned_data = super().clean()
-        existing_status = cleaned_data.get('existing_status')
+        status = cleaned_data.get('status')
         is_predefined = cleaned_data.get('is_predefined')
         order = cleaned_data.get('order')
 
-        if existing_status and is_predefined and order is None:
-            raise forms.ValidationError("You must specify an order for the predefined task.")
+        if is_predefined and (not status or order is None):
+            raise forms.ValidationError("You must specify a status and an order for the predefined task.")
 
         return cleaned_data
 
     @transaction.atomic
     def save(self, commit=True):
-        task = super().save(commit=False)
-        existing_status = self.cleaned_data.get('existing_status')
+        status_task = super().save(commit=False)
         is_predefined = self.cleaned_data.get('is_predefined')
         order = self.cleaned_data.get('order')
 
-        print(f"existing_status: {existing_status}, is_predefined: {is_predefined}, order: {order}")
-
         if commit:
-            task.save()
-            if existing_status:
-                if is_predefined:
-                    StatusTask.objects.create(status=existing_status, task=task, is_predefined=is_predefined, order=order)
-                else:
-                    StatusTask.objects.create(status=existing_status, task=task, is_predefined=is_predefined)
-        return task
+            status_task.save()
+        return status_task
 
 class ProductTaskForm(BaseForm):
     class Meta:
         model = ProductTask
         fields = ['product', 'task', 'result', 'note', 'is_completed', 'is_skipped', 'is_predefined']
 
-class StatusTaskForm(BaseForm):
-    class Meta:
-        model = StatusTask
-        fields = ['status', 'task', 'is_predefined']
 
 class LocationForm(BaseForm):
     action = forms.ChoiceField(choices=[('create', 'Create'), ('remove', 'Remove')], widget=forms.RadioSelect, label="Action")
@@ -341,4 +361,5 @@ class CheckinOrUpdateForm(forms.Form):
 CategoryFormSet = modelformset_factory(Category, form=CategoryForm, extra=1, can_delete=False)
 StatusFormSet = modelformset_factory(Status, form=StatusForm, extra=1, can_delete=True)
 TaskFormSet = modelformset_factory(Task, form=TaskForm, extra=1, can_delete=False)
+StatusTaskFormSet = modelformset_factory(StatusTask, form=StatusTaskForm, extra=1, can_delete=True)
 LocationFormSet = modelformset_factory(Location, form=LocationForm, extra=1, can_delete=True)

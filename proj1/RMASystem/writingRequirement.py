@@ -16,6 +16,7 @@
     #3. debug the products.html and product_detail.html.
     #4. add functionality to add status with next possible status, and the status transition.
     #5 12/2, add task is generally done, but need to take care of insert the statustask created with an order, the save() method of statustask still need to develop
+    #6 12/2 night/ finishe the add task part, but have not test it fully. Handle three case of add task.  still need to take care of delete task.
 """
 Things about feature_manage:
 

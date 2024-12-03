@@ -7,7 +7,6 @@
     function toggleFormSections() {
         const selectedAction = document.querySelector('input[name="form_action"]:checked');
         if (selectedAction) {
-            console.log(selectedAction.value);
             document.querySelectorAll('.form-section').forEach(section => {
                 section.style.display = 'none';
             });
@@ -40,16 +39,19 @@
         const orderField = document.getElementById('order-field');
         const predefinedTasksList = document.getElementById('predefined-tasks-list');
         const predefinedTasksDescription = document.getElementById('predefined-tasks-description');
-        const statusSelect = document.querySelector('select[name="existing_status"]');
+        const statusSelect = document.querySelector('select[name="status"]');
         if (isPredefined && orderField && predefinedTasksList && predefinedTasksDescription && statusSelect) {
             if (isPredefined.checked && statusSelect.value) {
                 orderField.style.display = 'block';
                 predefinedTasksDescription.style.display = 'block';
+                statusSelect.setAttribute('required', 'required');
                 listPredefinedTasks(statusSelect.value);
+                updateOrderChoices(statusSelect.value);
             } else {
                 orderField.style.display = 'none';
                 predefinedTasksList.innerHTML = '';
                 predefinedTasksDescription.style.display = 'none';
+                statusSelect.removeAttribute('required');
             }
         }
     }
@@ -67,6 +69,22 @@
                 });
             })
             .catch(error => console.error('Error fetching predefined tasks:', error));
+    }
+
+    function updateOrderChoices(statusId) {
+        fetch(`/get_order_choices/?status_id=${statusId}`)
+            .then(response => response.json())
+            .then(data => {
+                const orderField = document.querySelector('select[name="order"]');
+                orderField.innerHTML = '';
+                data.choices.forEach(choice => {
+                    const option = document.createElement('option');
+                    option.value = choice.value;
+                    option.textContent = choice.display;
+                    orderField.appendChild(option);
+                });
+            })
+            .catch(error => console.error('Error fetching order choices:', error));
     }
 
     document.addEventListener('DOMContentLoaded', function() {
@@ -90,7 +108,7 @@
             isPredefinedCheckbox.addEventListener('change', toggleOrderField);
         }
 
-        const statusSelect = document.querySelector('select[name="existing_status"]');
+        const statusSelect = document.querySelector('select[name="status"]');
         if (statusSelect) {
             statusSelect.addEventListener('change', toggleOrderField);
         }
@@ -113,7 +131,7 @@
     <label><input type="radio" name="form_action" value="location" {% if selected_action == 'location' %}checked{% endif %}> Manage Locations</label>
 </form>
 
-<div id="category-form-section" class="form-section" style="display: none;">
+<div id="category-form-section" class="form-section" {% if selected_action != 'category' %}style="display: none;"{% endif %}>
     <form method="post">
         {% csrf_token %}
         <input type="hidden" name="form_action" value="category">
@@ -122,14 +140,16 @@
 
         <div id="add-category-section" class="category-action-section">
             <h3>Add Category</h3>
-            {{ category_form.name.label_tag }} {{ category_form.name }}
+            <label for="{{ category_form.name.id_for_label }}">{{ category_form.name.label }}</label>
+            {{ category_form.name }}
             <button type="submit">Save to add category</button>
         </div>
 
         <div id="delete-category-section" class="category-action-section" style="display: none;">
             <h3>Delete Category</h3>
             {% if categories_exist %}
-                {{ category_form.category.label_tag }} {{ category_form.category }}
+                <label for="{{ category_form.category.id_for_label }}">{{ category_form.category.label }}</label>
+                {{ category_form.category }}
                 <button type="submit">Save to delete category</button>
             {% else %}
                 <p>No categories available for deletion.</p>
@@ -138,7 +158,7 @@
     </form>
 </div>
 
-<div id="task-form-section" class="form-section" style="display: none;">
+<div id="task-form-section" class="form-section" {% if selected_action != 'task' %}style="display: none;"{% endif %}>
     <form method="post">
         {% csrf_token %}
         <input type="hidden" name="form_action" value="task">
@@ -147,27 +167,33 @@
 
         <div id="add-task-section" class="task-action-section">
             <h3>Add Task</h3>
-            {{ task_form.task_name.label_tag }} {{ task_form.task_name }}
-            {{ task_form.description.label_tag }} {{ task_form.description }}
-            {{ task_form.existing_status.label_tag }} {{ task_form.existing_status }}
-            {{ task_form.is_predefined.label_tag }} {{ task_form.is_predefined }}
+            <label for="{{ task_form.task_name.id_for_label }}">{{ task_form.task_name.label }}</label>
+            {{ task_form.task_name }}
+            <label for="{{ task_form.description.id_for_label }}">{{ task_form.description.label }}</label>
+            {{ task_form.description }}
+            <label for="{{ status_task_form.status.id_for_label }}">{{ status_task_form.status.label }}</label>
+            {{ status_task_form.status }}
+            <label for="{{ status_task_form.is_predefined.id_for_label }}">{{ status_task_form.is_predefined.label }}</label>
+            {{ status_task_form.is_predefined }}
             <div id="order-field" style="display: none;">
-                {{ task_form.order.label_tag }} {{ task_form.order }}
+                <label for="{{ status_task_form.order.id_for_label }}">{{ status_task_form.order.label }}</label>
+                {{ status_task_form.order }}
             </div>
             <p id="predefined-tasks-description" style="display: none;">List of predefined tasks for the selected status:</p>
             <ul id="predefined-tasks-list"></ul>
-            <button type="submit">Save to add task</button>
+            <button type="submit" name="task_action" value="add">Save to add task</button>
         </div>
 
         <div id="delete-task-section" class="task-action-section" style="display: none;">
             <h3>Delete Task</h3>
-            {{ task_form.existing_predefined_tasks_under_status.label_tag }} {{ task_form.existing_predefined_tasks_under_status }}
-            <button type="submit">Save to delete task</button>
+            <label for="{{ status_task_form.existing_predefined_tasks_under_status.id_for_label }}">{{ status_task_form.existing_predefined_tasks_under_status.label }}</label>
+            {{ status_task_form.existing_predefined_tasks_under_status }}
+            <button type="submit" name="task_action" value="delete">Save to delete task</button>
         </div>
     </form>
 </div>
 
-<div id="status-form-section" class="form-section" style="display: none;">
+<div id="status-form-section" class="form-section" {% if selected_action != 'status' %}style="display: none;"{% endif %}>
     <form method="post">
         {% csrf_token %}
         <input type="hidden" name="form_action" value="status">
@@ -175,9 +201,12 @@
         <table>
             {% for form in formsets.status %}
                 <tr>
-                    <td>{{ form.name.label_tag }} {{ form.name }}</td>
-                    <td>{{ form.description.label_tag }} {{ form.description }}</td>
-                    <td>{{ form.is_closed.label_tag }} {{ form.is_closed }}</td>
+                    <td><label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label></td>
+                    <td>{{ form.name }}</td>
+                    <td><label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label></td>
+                    <td>{{ form.description }}</td>
+                    <td><label for="{{ form.is_closed.id_for_label }}">{{ form.is_closed.label }}</label></td>
+                    <td>{{ form.is_closed }}</td>
                     <td>{{ form.DELETE }}</td>
                 </tr>
             {% endfor %}
@@ -186,7 +215,7 @@
     </form>
 </div>
 
-<div id="location-form-section" class="form-section" style="display: none;">
+<div id="location-form-section" class="form-section" {% if selected_action != 'location' %}style="display: none;"{% endif %}>
     <form method="post">
         {% csrf_token %}
         <input type="hidden" name="form_action" value="location">
@@ -194,12 +223,18 @@
         <table>
             {% for form in formsets.location %}
                 <tr>
-                    <td>{{ form.action.label_tag }} {{ form.action }}</td>
-                    <td>{{ form.rack_name.label_tag }} {{ form.rack_name }}</td>
-                    <td>{{ form.layer_number.label_tag }} {{ form.layer_number }}</td>
-                    <td>{{ form.num_spaces_per_layer.label_tag }} {{ form.num_spaces_per_layer }}</td>
-                    <td>{{ form.remove_layer_number.label_tag }} {{ form.remove_layer_number }}</td>
-                    <td>{{ form.remove_rack_name.label_tag }} {{ form.remove_rack_name }}</td>
+                    <td><label for="{{ form.action.id_for_label }}">{{ form.action.label }}</label></td>
+                    <td>{{ form.action }}</td>
+                    <td><label for="{{ form.rack_name.id_for_label }}">{{ form.rack_name.label }}</label></td>
+                    <td>{{ form.rack_name }}</td>
+                    <td><label for="{{ form.layer_number.id_for_label }}">{{ form.layer_number.label }}</label></td>
+                    <td>{{ form.layer_number }}</td>
+                    <td><label for="{{ form.num_spaces_per_layer.id_for_label }}">{{ form.num_spaces_per_layer.label }}</label></td>
+                    <td>{{ form.num_spaces_per_layer }}</td>
+                    <td><label for="{{ form.remove_layer_number.id_for_label }}">{{ form.remove_layer_number.label }}</label></td>
+                    <td>{{ form.remove_layer_number }}</td>
+                    <td><label for="{{ form.remove_rack_name.id_for_label }}">{{ form.remove_rack_name.label }}</label></td>
+                    <td>{{ form.remove_rack_name }}</td>
                     <td>{{ form.DELETE }}</td>
                 </tr>
             {% endfor %}
