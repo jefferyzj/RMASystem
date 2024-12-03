@@ -122,8 +122,14 @@
         // Display messages and handle redirection
         const messageContainer = document.querySelector('.messages');
         if (messageContainer && messageContainer.children.length > 0) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.classList.add(messageContainer.children[0].classList.contains('alert-success') ? 'toast-success' : 'toast-error');
+            toast.innerHTML = messageContainer.children[0].innerHTML;
+            document.body.appendChild(toast);
+            toast.style.display = 'block';
             setTimeout(() => {
-                messageContainer.style.display = 'none';
+                toast.style.display = 'none';
                 window.location.href = "{% url 'feature_manage' %}";
             }, 3000);
         }
@@ -147,15 +153,15 @@
 </div>
 
 <form method="get">
-    <label><input type="radio" name="form_action" value="category" {% if selected_action == 'category' %}checked{% endif %}> Manage Categories</label>
-    <label><input type="radio" name="form_action" value="status" {% if selected_action == 'status' %}checked{% endif %}> Manage Statuses</label>
-    <label><input type="radio" name="form_action" value="task" {% if selected_action == 'task' %}checked{% endif %}> Manage Tasks</label>
-    <label><input type="radio" name="form_action" value="location" {% if selected_action == 'location' %}checked{% endif %}> Manage Locations</label>
+    <label><input type="radio" name="form_action" value="category" {% if selected_action == 'category' %}checked{% endif %} title="Manage Categories"> Manage Categories</label>
+    <label><input type="radio" name="form_action" value="status" {% if selected_action == 'status' %}checked{% endif %} title="Manage Statuses"> Manage Statuses</label>
+    <label><input type="radio" name="form_action" value="task" {% if selected_action == 'task' %}checked{% endif %} title="Manage Tasks"> Manage Tasks</label>
+    <label><input type="radio" name="form_action" value="location" {% if selected_action == 'location' %}checked{% endif %} title="Manage Locations"> Manage Locations</label>
 </form>
 
 <div id="category-form-section" class="form-section" {% if selected_action != 'category' %}style="display: none;"{% endif %}>
-    <label><input type="radio" name="category_action" value="add" checked> Add Category</label>
-    <label><input type="radio" name="category_action" value="delete"> Delete Category</label>
+    <label><input type="radio" name="category_action" value="add" checked title="Add Category"> Add Category</label>
+    <label><input type="radio" name="category_action" value="delete" title="Delete Category"> Delete Category</label>
 
     <form method="post" id="add-category-form">
         {% csrf_token %}
@@ -165,7 +171,7 @@
             <h3>Add Category</h3>
             <label for="{{ category_form.name.id_for_label }}">{{ category_form.name.label }}</label>
             {{ category_form.name }}
-            <button type="submit">Save to add category</button>
+            <button type="submit" title="Save to add category">Save to add category</button>
         </div>
     </form>
 
@@ -178,7 +184,7 @@
             {% if categories_exist %}
                 <label for="{{ category_form.category.id_for_label }}">{{ category_form.category.label }}</label>
                 {{ category_form.category }}
-                <button type="submit">Save to delete category</button>
+                <button type="submit" title="Save to delete category">Save to delete category</button>
             {% else %}
                 <p>No categories available for deletion.</p>
             {% endif %}
@@ -190,8 +196,8 @@
     <form method="post" id="add-task-form">
         {% csrf_token %}
         <input type="hidden" name="form_action" value="task">
-        <label><input type="radio" name="task_action" value="add" checked> Add Task</label>
-        <label><input type="radio" name="task_action" value="delete"> Delete Task</label>
+        <label><input type="radio" name="task_action" value="add" checked title="Add Task"> Add Task</label>
+        <label><input type="radio" name="task_action" value="delete" title="Delete Task"> Delete Task</label>
 
         <div id="add-task-section" class="task-action-section">
             <h3>Add Task</h3>
@@ -209,7 +215,7 @@
             </div>
             <p id="predefined-tasks-description" style="display: none;">List of predefined tasks for the selected status:</p>
             <ul id="predefined-tasks-list"></ul>
-            <button type="submit" name="task_action" value="add">Save to add task</button>
+            <button type="submit" name="task_action" value="add" title="Save to add task">Save to add task</button>
         </div>
     </form>
 
@@ -220,7 +226,7 @@
             <h3>Delete Task</h3>
             <label for="{{ status_task_form.existing_tasks.id_for_label }}">{{ status_task_form.existing_tasks.label }}</label>
             {{ status_task_form.existing_tasks }}
-            <button type="submit" name="task_action" value="delete">Save to delete task</button>
+            <button type="submit" name="task_action" value="delete" title="Save to delete task">Save to delete task</button>
         </div>
     </form>
 </div>
@@ -243,7 +249,7 @@
                 </tr>
             {% endfor %}
         </table>
-        <button type="submit">Save to update statuses</button>
+        <button type="submit" title="Save to update statuses">Save to update statuses</button>
     </form>
 </div>
 
@@ -271,7 +277,7 @@
                 </tr>
             {% endfor %}
         </table>
-        <button type="submit">Save to update locations</button>
+        <button type="submit" title="Save to update locations">Save to update locations</button>
     </form>
 </div>
 {% endblock %}
