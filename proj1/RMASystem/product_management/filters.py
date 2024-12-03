@@ -10,5 +10,5 @@ class ProductFilter(django_filters.FilterSet):
             'location__rack_name': ['exact'],
             'priority_level': ['exact'],
             'current_status__name': ['exact'],
-            'current_task__action': ['exact'],
+            'current_task__task_name': ['exact'],
         }

@@ -15,6 +15,7 @@
     #2. modify the view of checkinorupdateview, and the checkinorupdate.html
     #3. debug the products.html and product_detail.html.
     #4. add functionality to add status with next possible status, and the status transition.
+    #5 12/2, add task is generally done, but need to take care of insert the statustask created with an order, the save() method of statustask still need to develop
 """
 Things about feature_manage:
 

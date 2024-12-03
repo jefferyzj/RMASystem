@@ -20,8 +20,8 @@ class StatusAdmin(admin.ModelAdmin):
 
 @admin.register(Task)
 class TaskAdmin(admin.ModelAdmin):
-    list_display = ('action', 'description')
-    search_fields = ('action', 'description')
+    list_display = ('task_name', 'description')
+    search_fields = ('task_name', 'description')
 
 @admin.register(StatusTask)
 class StatusTaskAdmin(admin.ModelAdmin):

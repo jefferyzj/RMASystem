@@ -6,6 +6,7 @@ from .views import (
     ProductDetailView,
     FeatureManageView,
     CheckinOrUpdateView,
+    get_predefined_tasks,
 )
 urlpatterns = [
     path('', home_view, name='home'),
@@ -13,5 +14,6 @@ urlpatterns = [
     #path('products/<slug:sn>/', ProductDetailView.as_view(), name='product_detail'),
     path('feature_manage/', FeatureManageView.as_view(), name='feature_manage'),
     path('checkin_or_update/', CheckinOrUpdateView.as_view(), name='checkin_or_update'),
+    path('get_predefined_tasks/', get_predefined_tasks, name='get_predefined_tasks'),
     # Other URL patterns
 ]

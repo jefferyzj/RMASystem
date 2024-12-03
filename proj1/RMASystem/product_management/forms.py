@@ -41,22 +41,25 @@ class StatusForm(BaseForm):
         model = Status
         fields = ['name', 'description', 'is_closed']
 
-class TaskForm(BaseForm):
-    status = forms.ModelChoiceField(queryset=Status.objects.all(), required=False, label="Map to Status")
+class TaskForm(forms.ModelForm):
+    task_name = forms.CharField(max_length=100, label="Task Name")
+    description = forms.CharField(widget=forms.Textarea, required=False, label="Description")
+    existing_status = forms.ModelChoiceField(queryset=Status.objects.all(), required=False, label="Map to Status")
     is_predefined = forms.BooleanField(required=False, label="Set as Predefined Task")
     order = forms.IntegerField(required=False, label="Order")
+    existing_predefined_tasks_under_status = forms.ModelChoiceField(queryset=Task.objects.all(), required=False, label="Select Task to Delete")
 
     class Meta:
         model = Task
-        fields = ['action', 'description', 'status', 'is_predefined', 'order']
+        fields = ['task_name', 'description', 'existing_status', 'is_predefined', 'order', 'existing_predefined_tasks_under_status']
 
     def clean(self):
         cleaned_data = super().clean()
-        status = cleaned_data.get('status')
+        existing_status = cleaned_data.get('existing_status')
         is_predefined = cleaned_data.get('is_predefined')
         order = cleaned_data.get('order')
 
-        if status and is_predefined and order is None:
+        if existing_status and is_predefined and order is None:
             raise forms.ValidationError("You must specify an order for the predefined task.")
 
         return cleaned_data
@@ -64,17 +67,19 @@ class TaskForm(BaseForm):
     @transaction.atomic
     def save(self, commit=True):
         task = super().save(commit=False)
-        status = self.cleaned_data.get('status')
+        existing_status = self.cleaned_data.get('existing_status')
         is_predefined = self.cleaned_data.get('is_predefined')
         order = self.cleaned_data.get('order')
 
+        print(f"existing_status: {existing_status}, is_predefined: {is_predefined}, order: {order}")
+
         if commit:
             task.save()
-            if status:
+            if existing_status:
                 if is_predefined:
-                    StatusTask.objects.create(status=status, task=task, is_predefined=is_predefined, order=order)
+                    StatusTask.objects.create(status=existing_status, task=task, is_predefined=is_predefined, order=order)
                 else:
-                    StatusTask.objects.create(status=status, task=task, is_predefined=is_predefined)
+                    StatusTask.objects.create(status=existing_status, task=task, is_predefined=is_predefined)
         return task
 
 class ProductTaskForm(BaseForm):
@@ -335,5 +340,5 @@ class CheckinOrUpdateForm(forms.Form):
 # Formsets for featureManageView
 CategoryFormSet = modelformset_factory(Category, form=CategoryForm, extra=1, can_delete=False)
 StatusFormSet = modelformset_factory(Status, form=StatusForm, extra=1, can_delete=True)
-TaskFormSet = modelformset_factory(Task, form=TaskForm, extra=1, can_delete=True)
+TaskFormSet = modelformset_factory(Task, form=TaskForm, extra=1, can_delete=False)
 LocationFormSet = modelformset_factory(Location, form=LocationForm, extra=1, can_delete=True)

@@ -61,7 +61,7 @@ class StatusTransition(TimeStampedModel):
         super().save(*args, **kwargs)
 
 class Task(TimeStampedModel):
-    action = models.CharField(
+    task_name = models.CharField(
         max_length=100, 
         help_text="Action to be performed in this task", 
         default="Default Action"
@@ -73,7 +73,7 @@ class Task(TimeStampedModel):
     )
 
     def __str__(self):
-        return f"This Task: Action: {self.action} | description: {self.description}."
+        return f"This Task: Action: {self.task_name} | description: {self.description}."
 
 
 class StatusTask(OrderedModel):
@@ -96,13 +96,30 @@ class StatusTask(OrderedModel):
             models.UniqueConstraint(fields=['status', 'task'], name='unique_status_task')
         ]
     
+
     def save(self, *args, **kwargs):
         if not self.is_predefined:
             self.order = None
+        elif self.pk is None:  # just care about the new instances
+                self.insert_at_order()
         super().save(*args, **kwargs)
 
+    def insert_at_order(self):
+        predefined_tasks = StatusTask.objects.filter(status=self.status, is_predefined=True).order_by('order')
+        head_order = 1
+        for task in predefined_tasks:
+            if task.order >= self.order:
+                task.order += 1
+                
+            else:
+                task.order = head_order
+                head_order += 1
+            task.save(update_fields=['order'])
+
+
+
     def __str__(self):
-        return f'- The task {self.task.action} under - status {self.status.name} - with the order {self.order if self.is_predefined else "N/A"}'
+        return f'- The task {self.task.task_name} under - status {self.status.name} - with the order {self.order if self.is_predefined else "N/A"}'
 
 class ProductTask(TimeStampedModel, OrderedModel):
     """
@@ -141,7 +158,7 @@ class ProductTask(TimeStampedModel, OrderedModel):
         ordering = ['order']
 
     def __str__(self):
-        return f'{self.product.SN} - {self.task.action} - is completed: {self.is_completed} - is skipped: {self.is_skipped} - result: {self.result}'
+        return f'{self.product.SN} - {self.task.task_name} - is completed: {self.is_completed} - is skipped: {self.is_skipped} - result: {self.result}'
 
 
     def save(self, *args, **kwargs):
@@ -168,9 +185,9 @@ class ProductTask(TimeStampedModel, OrderedModel):
                 self.note = kwargs.pop('note')
         
         if self.is_skipped:
-            self.result = f'(Skipped) -action: {self.task.action} -result:{self.result}'
+            self.result = f'(Skipped) -action: {self.task.task_name} -result:{self.result}'
         elif self.is_completed:
-            self.result = f'(Completed) -action: {self.task.action} -result:{self.result}'
+            self.result = f'(Completed) -action: {self.task.task_name} -result:{self.result}'
 
         super().save(*args, **kwargs)
 
@@ -212,7 +229,7 @@ class ProductStatus(TimeStampedModel):
         result = f'{self.status.name}: '
         for product_task in product_tasks:
             task_situation = 'Completed' if product_task.is_completed else 'Skipped' if product_task.is_skipped else 'Not Yet Done'
-            result += f'{product_task.task.action} - is {task_situation} - Result: {product_task.result}'
+            result += f'{product_task.task.task_name} - is {task_situation} - Result: {product_task.result}'
             if  product_tasks.note:
                 result += f' - Note: {product_task.note}'
             result += ' | '
@@ -259,8 +276,8 @@ class Product(TimeStampedModel, SoftDeletableModel):
         ]
 
     def __str__(self):
-        current_task_action = self.current_task.action if self.current_task else "No task assigned"
-        return f'Product SN: {self.SN} | Priority: {self.priority_level} | Current Status: {self.current_status.name if self.current_status else "No status"} | Action of Task: {current_task_action.action}'
+        current_task_name = self.current_task.task_name if self.current_task else "No task assigned"
+        return f'Product SN: {self.SN} | Priority: {self.priority_level} | Current Status: {self.current_status.name if self.current_status else "No status"} | Action of Task: {current_task_name}'
 
     def save(self, *args, **kwargs):
         """

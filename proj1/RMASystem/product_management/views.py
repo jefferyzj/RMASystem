@@ -220,7 +220,7 @@ class FeatureManageView(View):
     template_name = 'feature_manage.html'
 
     def get(self, request):
-        action = request.GET.get('action', 'category')
+        action = request.GET.get('form_action', 'category')
         formsets = {
             'category': CategoryFormSet(queryset=Category.objects.all()),
             'status': StatusFormSet(queryset=Status.objects.all()),
@@ -228,16 +228,19 @@ class FeatureManageView(View):
             'location': LocationFormSet(queryset=Location.objects.all()),  # Ensure the queryset is not empty
         }
         category_form = CategoryForm()
+        task_form = TaskForm()
         categories_exist = Category.objects.exists()
         return render(request, self.template_name, {
             'formsets': formsets,
             'selected_action': action,
             'category_form': category_form,
+            'task_form': task_form,
             'categories_exist': categories_exist,
         })
 
     def post(self, request):
-        action = request.POST.get('action', 'category')
+        action = request.POST.get('form_action', 'category')
+        print(f"Action: {action}")  # Debug statement to print the action value
         formsets = {
             'category': CategoryFormSet(request.POST),
             'status': StatusFormSet(request.POST),
@@ -245,6 +248,7 @@ class FeatureManageView(View):
             'location': LocationFormSet(request.POST),
         }
         category_form = CategoryForm(request.POST)
+        task_form = TaskForm(request.POST)
 
         if action == 'category':
             category_action = request.POST.get('category_action')
@@ -253,6 +257,8 @@ class FeatureManageView(View):
                     category_form.save()
                     messages.success(request, 'Category added successfully.')
                     return redirect('feature_manage')
+                else:
+                    print(category_form.errors)  # Debug statement to print form errors
             elif category_action == 'delete':
                 category = get_object_or_404(Category, pk=request.POST.get('category'))
                 product_count = Product.objects.filter(category=category).count()
@@ -263,12 +269,45 @@ class FeatureManageView(View):
                     messages.success(request, 'Category deleted successfully.')
                 return redirect('feature_manage')
 
-        if formsets[action].is_valid():
+        if action == 'task':
+            task_action = request.POST.get('task_action')
+            if task_action == 'add':
+                if task_form.is_valid():
+                    task_form.save()
+                    messages.success(request, 'Task added successfully.')
+                    return redirect('feature_manage')
+                else:
+                    print(task_form.errors)  # Debug statement to print form errors
+            elif task_action == 'delete':
+                task_id = request.POST.get('existingTasksSet')
+                if task_id:
+                    task = get_object_or_404(Task, pk=task_id)
+                    task.delete()
+                    messages.success(request, 'Task deleted successfully.')
+                    return redirect('feature_manage')
+
+        if action in formsets and formsets[action].is_valid():
             formsets[action].save()
+            messages.success(request, f'{action.capitalize()}s updated successfully.')
             return redirect('feature_manage')
+        else:
+            if action not in formsets:
+                print(f"Invalid action: {action}")  # Debug statement to print invalid action
+            else:
+                print(formsets[action].errors)  # Debug statement to print formset errors
+
         return render(request, self.template_name, {
             'formsets': formsets,
             'selected_action': action,
             'category_form': category_form,
+            'task_form': task_form,
             'categories_exist': Category.objects.exists(),
         })
+    
+def get_predefined_tasks(request):
+    status_id = request.GET.get('status_id')
+    if status_id:
+        tasks = StatusTask.objects.filter(status_id=status_id, is_predefined=True).values('task__task_name', 'order')
+        tasks_list = list(tasks)
+        return JsonResponse({'tasks': tasks_list})
+    return JsonResponse({'tasks': []})
