@@ -58,6 +58,7 @@ class StatusTransition(TimeStampedModel):
     def __str__(self):
         return f'{self.from_status} -> {self.to_status}'
     
+    @transaction.atomic
     def save(self, *args, **kwargs):
         if self.from_status.is_closed:
             raise ValidationError(f"Cannot create a transition from a closed status: {self.from_status.name}")
@@ -88,8 +89,8 @@ class StatusTask(OrderedModel):
     """
     status = models.ForeignKey(Status, related_name='status_tasks', on_delete=models.CASCADE)
     task = models.ForeignKey(Task, related_name='task_statuses', on_delete=models.CASCADE)
-    is_predefined = models.BooleanField(default=True, help_text="Indicates if the task is predefined for this status")
-    order = models.PositiveIntegerField(default=1, editable=True, db_index=True)
+    is_predefined = models.BooleanField(default=False, help_text="Indicates if the task is predefined for this status")
+    order = models.PositiveIntegerField(default=None, editable=True, db_index=True)
     
     order_with_respect_to = 'status'
 
@@ -104,16 +105,21 @@ class StatusTask(OrderedModel):
         if self.is_predefined:
             if StatusTask.objects.filter(status=self.status, order=self.order).exclude(pk=self.pk).exists():
                 raise ValidationError(f'The order {self.order} is already taken for the status {self.status.name}.')
-
+        else:
+            print(f"order is {self.order} before clean")
+            self.order = None  # Ensure order is None if is_predefined is False
+   
+    @transaction.atomic
     def save(self, *args, **kwargs):
         if not self.is_predefined:
             self.order = None
-        elif self.pk is None:  # just care about the new instances
-            print(f"insert at order, order is {self.order}")
-            self.insert_at_order()
-            print(f"before save, order is {self.order}")
+        print(f"before save, order is {self.order}")
         super().save(*args, **kwargs)
         print(f"after save, order is {self.order}")
+
+        if self.is_predefined:
+            self.refresh_from_db()  # Refresh the instance to get the correct order value set by OrderedModel
+        print(f"after refresh, order is {self.order}")
 
     def insert_at_order(self):
         predefined_tasks = StatusTask.objects.filter(status=self.status, is_predefined=True).order_by('order')
@@ -123,8 +129,6 @@ class StatusTask(OrderedModel):
         else:
             print(f"no predefined status tasks")
             self.order = 1  # Ensure the first predefined task has order 1
-
-
 
     def __str__(self):
         return f'- The task {self.task.task_name} under - status {self.status.name} - with the order {self.order if self.is_predefined else "N/A"}'
@@ -168,7 +172,8 @@ class ProductTask(TimeStampedModel, OrderedModel):
     def __str__(self):
         return f'{self.product.SN} - {self.task.task_name} - is completed: {self.is_completed} - is skipped: {self.is_skipped} - result: {self.result}'
 
-
+    
+    @transaction.atomic
     def save(self, *args, **kwargs):
         """
         Override the save() so that Skip or complete the task of the product, and update the result of the task.
@@ -286,7 +291,8 @@ class Product(TimeStampedModel, SoftDeletableModel):
     def __str__(self):
         current_task_name = self.current_task.task_name if self.current_task else "No task assigned"
         return f'Product SN: {self.SN} | Priority: {self.priority_level} | Current Status: {self.current_status.name if self.current_status else "No status"} | Action of Task: {current_task_name}'
-
+    
+    @transaction.atomic
     def save(self, *args, **kwargs):
         """
         Handle the case if the product is new or not, and if the status of the product is changed or not.
@@ -439,4 +445,4 @@ class Product(TimeStampedModel, SoftDeletableModel):
     #1. not finish productstatustaskeditview and its form, and the product_status_task_edit.html
     #2. modify the view of checkinorupdateview, and the checkinorupdate.html
     #3. debug the products.html and product_detail.html.
-    #4. add 
+    #4. add

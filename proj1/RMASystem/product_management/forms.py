@@ -57,10 +57,10 @@ class TaskForm(BaseForm):
         return task
 
 
-class StatusTaskForm(BaseForm):
+class StatusTaskForm(forms.ModelForm):
     status = forms.ModelChoiceField(queryset=Status.get_existing_statuses(), required=True, label="Map to Status")
     task = forms.ModelChoiceField(queryset=Task.objects.all(), required=True, label="Select Task")
-    is_predefined = forms.BooleanField(required=False, label="Set as Predefined Task")
+    is_predefined = forms.BooleanField(required=False, label="Set as Predefined Task", initial=False)
     order = forms.ChoiceField(required=False, label="Order")
     existing_tasks = forms.ChoiceField(required=False, label="Select Task to Delete")
 
@@ -86,7 +86,7 @@ class StatusTaskForm(BaseForm):
 
     def get_existing_tasks_choices(self):
         """
-        helper function to get the choices for the existing tasks dropdown
+        Helper function to get the choices for the existing tasks dropdown
         """
         choices = []
         status_tasks = StatusTask.objects.all()
@@ -102,19 +102,25 @@ class StatusTaskForm(BaseForm):
     def clean(self):
         cleaned_data = super().clean()
         status = cleaned_data.get('status')
-        is_predefined = cleaned_data.get('is_predefined')
+        is_predefined = cleaned_data.get('is_predefined', False)  # Default to False if not provided
         order = cleaned_data.get('order')
 
-        if is_predefined and (not status or order is None):
-            raise forms.ValidationError("You must specify a status and an order for the predefined task.")
+        if is_predefined:
+            if not status or order is None:
+                raise forms.ValidationError("You must specify a status and an order for the predefined task.")
+        else:
+            cleaned_data['order'] = None  # Set order to None if is_predefined is False
 
         return cleaned_data
 
     @transaction.atomic
     def save(self, commit=True):
         status_task = super().save(commit=False)
-        is_predefined = self.cleaned_data.get('is_predefined')
+        is_predefined = self.cleaned_data.get('is_predefined', False)
         order = self.cleaned_data.get('order')
+
+        if not is_predefined:
+            status_task.order = None  # Ensure order is None if is_predefined is False
 
         if commit:
             status_task.save()
@@ -265,6 +271,7 @@ class ProductForm(BaseForm):
         self.fields['next_status_select'].help_text = "Select an existing status or enter a new one below"
         self.fields['location'].queryset = Location.objects.filter(products__isnull=True)
 
+    @transaction.atomic
     def clean(self):
         cleaned_data = super().clean()
         next_status_select = cleaned_data.get('next_status_select')

@@ -298,7 +298,7 @@ class ManageTasksView(View):
             'task_form': task_form,
             'status_task_form': status_task_form
         })
-
+    
     def post(self, request):
         print("ManageTasksView POST request")
         task_form = TaskForm(request.POST)
@@ -311,39 +311,37 @@ class ManageTasksView(View):
                 existing_status = request.POST.get('status')
                 is_predefined = request.POST.get('is_predefined')
                 order = request.POST.get('order')
-                task.save() #add task to database, if counter error occurs, task will be deleted
-                if existing_status:
-                    if is_predefined and order:
-
-                        status_task_form = StatusTaskForm({
-                            'status': existing_status,
-                            'task': task.pk,
-                            'is_predefined': is_predefined,
-                            'order': order
-                        })
-                        if status_task_form.is_valid():
-                            status_task_form.save()
-                            messages.success(request, 'Task and StatusTask added successfully.')
+                #add task to database with task_form.save since they do the same thing as task.save.
+                # if counter error, task will be deleted
+                task_form.save() 
+                if existing_status:                 
+                    status_task_form = StatusTaskForm({
+                        'status': existing_status,
+                        'task': task.pk,
+                        'is_predefined': is_predefined,
+                        'order': order
+                    })
+                    if status_task_form.is_valid():
+                        status_task_form.save()
+                        if is_predefined and order:
+                            messages.success(request, 'Predefined Task mapped to status with order created successfully.')
                             print("Statustask added with predefined and order successfully")
                         else:
-                            messages.error(request, 'Error adding StatusTask.')
-                            print(status_task_form.errors)
-                            task.delete()
-                            print("Error adding StatusTask because status_task_form is invalid")
+                            messages.success(request, 'Non-predefined Task mapped to status without order created successfully.')
+                            print("Statustask added without predefined and order successfully")
                     else:
-                        print("Task added and mapped to status without predefined and order successfully")
-                        StatusTask.objects.create(status_id=existing_status, task=task, is_predefined=False)
-                        messages.success(request, 'Task added and mapped to status successfully.')
-                        
-                    print("Task added successfully with mapping to status")
+                        messages.error(request, 'Error adding StatusTask.')
+                        print(status_task_form.errors)
+                        task.delete()
+                        print("Error adding StatusTask because status_task_form is invalid")
                 else:
-    
                     messages.success(request, 'Task added successfully.')
                     print("Task added successfully without mapping to status")
             else:
                 messages.error(request, 'Error adding task.')
                 task.delete()
                 print("Error adding task because task_form is invalid")
+        
         elif task_action == 'delete':
             selected_task = request.POST.get('existing_tasks')
             print(f"Selected task: {selected_task}")
@@ -410,7 +408,6 @@ def get_order_choices(request):
         choices = [{'value': i, 'display': i} for i in range(1, max_order + 1)]
         return JsonResponse({'choices': choices})
     return JsonResponse({'choices': []})
-
 
 def fetch_categories(request):
     """
