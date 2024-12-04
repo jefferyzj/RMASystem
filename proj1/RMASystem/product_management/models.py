@@ -90,7 +90,7 @@ class StatusTask(OrderedModel):
     status = models.ForeignKey(Status, related_name='status_tasks', on_delete=models.CASCADE)
     task = models.ForeignKey(Task, related_name='task_statuses', on_delete=models.CASCADE)
     is_predefined = models.BooleanField(default=False, help_text="Indicates if the task is predefined for this status")
-    order = models.PositiveIntegerField(default=None, editable=True, db_index=True)
+    order = models.PositiveIntegerField(default=1, editable=True, db_index=True)
     
     order_with_respect_to = 'status'
 
@@ -99,39 +99,33 @@ class StatusTask(OrderedModel):
         constraints = [
             models.UniqueConstraint(fields=['status', 'task'], name='unique_status_task')
         ]
-    
-    def clean(self):
-        super().clean()
-        if self.is_predefined:
-            if StatusTask.objects.filter(status=self.status, order=self.order).exclude(pk=self.pk).exists():
-                raise ValidationError(f'The order {self.order} is already taken for the status {self.status.name}.')
-        else:
-            print(f"order is {self.order} before clean")
-            self.order = None  # Ensure order is None if is_predefined is False
-   
+
     @transaction.atomic
     def save(self, *args, **kwargs):
-        if not self.is_predefined:
-            self.order = None
-        print(f"before save, order is {self.order}")
+        # Seems that can handle the add task case and update task case.
+        print(f"Before all save: {self.order}")
+        order_stored  = self.order
         super().save(*args, **kwargs)
-        print(f"after save, order is {self.order}")
+        print(f"stored order: {order_stored}")
+        print(f"after fully save: {self.order}")
 
-        if self.is_predefined:
-            self.refresh_from_db()  # Refresh the instance to get the correct order value set by OrderedModel
-        print(f"after refresh, order is {self.order}")
-
-    def insert_at_order(self):
-        predefined_tasks = StatusTask.objects.filter(status=self.status, is_predefined=True).order_by('order')
-        if predefined_tasks.exists():
-            print(f"already exist predefined status tasks")
-            predefined_tasks.filter(order__gte=self.order).update(order=models.F('order') + 1)
+        if not self.is_predefined:
+            # Assign to the tail of all tasks
+            # since we saved before, the count here already includes the current task
+            self.order = StatusTask.objects.filter(status=self.status).count()
+            print(f"self.order in not predefined: {self.order}")
         else:
-            print(f"no predefined status tasks")
-            self.order = 1  # Ensure the first predefined task has order 1
+            self.to(order_stored)
+        print(f"Before save: {self.order}")
 
+        super().save(update_fields=['order'])
+
+        print(f"After save: {self.order}")
+        self.refresh_from_db()  # Refresh the instance to get the correct order value set by OrderedModel
+        print(f"Final order: {self.order}")
+        
     def __str__(self):
-        return f'- The task {self.task.task_name} under - status {self.status.name} - with the order {self.order if self.is_predefined else "N/A"}'
+        return f'- The task {self.task.task_name} under - status {self.status.name} - with the order {self.order}'
 
 class ProductTask(TimeStampedModel, OrderedModel):
     """

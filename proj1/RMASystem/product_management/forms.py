@@ -116,12 +116,6 @@ class StatusTaskForm(forms.ModelForm):
     @transaction.atomic
     def save(self, commit=True):
         status_task = super().save(commit=False)
-        is_predefined = self.cleaned_data.get('is_predefined', False)
-        order = self.cleaned_data.get('order')
-
-        if not is_predefined:
-            status_task.order = None  # Ensure order is None if is_predefined is False
-
         if commit:
             status_task.save()
         return status_task

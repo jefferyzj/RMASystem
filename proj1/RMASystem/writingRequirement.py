@@ -41,3 +41,14 @@ Locations:
 Add Location: Allow the user to create new locations with fields for rack name, layer number, and number of spaces per layer.
 Remove Location: Allow the user to remove existing locations by specifying the rack name and layer number. Ensure that locations storing products cannot be removed.
 """
+
+"""
+requirements to add task:
+
+Add a single task without mapping to a status.
+Add a task and a StatusTask with mapping to a status and set it as non-predefined.
+Automatically assign this StatusTask to the tail of the order of all StatusTask instances with respect to the status.
+Add a predefined task of a status with an order.
+Ensure predefined tasks always stand at the head of the order.
+Allow the user to insert the predefined task at a specific position among the predefined tasks or at the tail of the predefined tasks.
+"""
