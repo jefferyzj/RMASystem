@@ -10,6 +10,7 @@ from django.contrib import messages
 from django.http import JsonResponse
 from .forms import CategoryFormSet, StatusFormSet, TaskFormSet, LocationFormSet, StatusTaskFormSet
 from .utilhelpers import PRIORITY_LEVEL_CHOICES
+from django.db.models import Count
 
 def home_view(request):
     return render(request, 'base.html')
@@ -220,116 +221,173 @@ class FeatureManageView(View):
     template_name = 'feature_manage.html'
 
     def get(self, request):
-        action = request.GET.get('form_action', 'category')
-        formsets = {
-            'category': CategoryFormSet(queryset=Category.objects.all()),
-            'status': StatusFormSet(queryset=Status.objects.all()),
-            'task': TaskFormSet(queryset=Task.objects.all()),
-            'location': LocationFormSet(queryset=Location.objects.all()),  # Ensure the queryset is not empty
-        }
-        category_form = CategoryForm()
-        task_form = TaskForm()
-        status_task_form = StatusTaskForm()
+        return render(request, self.template_name)
+
+class ManageCategoriesView(View):
+    template_name = 'manage_categories.html'
+
+    def get(self, request):
+        print("ManageCategoriesView GET request")
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            categories = Category.objects.annotate(product_count=Count('products'))
+            data = [{'name': category.name, 'product_count': category.product_count} for category in categories]
+            print("Returning JSON response for categories")
+            return JsonResponse(data, safe=False)
+        else:
+            category_form = CategoryForm()
+            categories_exist = Category.objects.exists()
+            print("Rendering manage_categories.html template")
+            return render(request, self.template_name, {
+                'category_form': category_form,
+                'categories_exist': categories_exist
+            })
+
+    def post(self, request):
+        print("ManageCategoriesView POST request")
+        category_form = CategoryForm(request.POST)
+        category_action = request.POST.get('category_action')
+        print(f"Category action: {category_action}")
+        if category_action == 'add':
+            if category_form.is_valid():
+                category_form.save()
+                messages.success(request, 'Category added successfully.')
+                print("Category added successfully")
+            else:
+                messages.error(request, 'Error adding category.')
+                print("Error adding category")
+        elif category_action == 'delete':
+            category = get_object_or_404(Category, pk=request.POST.get('category'))
+            product_count = Product.objects.filter(category=category).count()
+            if product_count > 0:
+                messages.error(request, f'Cannot delete category "{category.name}" because it has {product_count} products.')
+                print(f"Cannot delete category {category.name} because it has {product_count} products")
+            else:
+                category.delete()
+                messages.success(request, 'Category deleted successfully.')
+                print("Category deleted successfully")
         categories_exist = Category.objects.exists()
         return render(request, self.template_name, {
-            'formsets': formsets,
-            'selected_action': action,
             'category_form': category_form,
+            'categories_exist': categories_exist
+        })
+
+class ManageStatusesView(View):
+    template_name = 'manage_statuses.html'
+
+    def get(self, request):
+        print("ManageStatusesView GET request")
+        formset = StatusFormSet(queryset=Status.objects.all())
+        print("Rendering manage_statuses.html template")
+        return render(request, self.template_name, {'formset': formset})
+
+    def post(self, request):
+        print("ManageStatusesView POST request")
+        formset = StatusFormSet(request.POST)
+        if formset.is_valid():
+            formset.save()
+            messages.success(request, 'Statuses updated successfully.')
+            print("Statuses updated successfully")
+        else:
+            messages.error(request, 'Error updating statuses.')
+            print("Error updating statuses")
+        return render(request, self.template_name, {'formset': formset})
+
+class ManageTasksView(View):
+    template_name = 'manage_tasks.html'
+
+    def get(self, request):
+        print("ManageTasksView GET request")
+        task_form = TaskForm()
+        status_task_form = StatusTaskForm()
+        print("Rendering manage_tasks.html template")
+        return render(request, self.template_name, {
             'task_form': task_form,
-            'status_task_form': status_task_form,
-            'categories_exist': categories_exist,
+            'status_task_form': status_task_form
         })
 
     def post(self, request):
-        action = request.POST.get('form_action', 'category')
-        print(f"Action: {action}")  # Debug statement to print the action value
-        formsets = {
-            'category': CategoryFormSet(request.POST),
-            'status': StatusFormSet(request.POST),
-            'task': TaskFormSet(request.POST),
-            'location': LocationFormSet(request.POST),
-        }
-        category_form = CategoryForm(request.POST)
+        print("ManageTasksView POST request")
         task_form = TaskForm(request.POST)
         status_task_form = StatusTaskForm(request.POST)
-
-        if action == 'category':
-            category_action = request.POST.get('category_action')
-            if category_action == 'add':
-                if category_form.is_valid():
-                    category_form.save()
-                    print("category added successfully")
-                    messages.success(request, 'Category added successfully.')
-                else:
-                    print(category_form.errors)  # Debug statement to print form errors
-            elif category_action == 'delete':
-                category = get_object_or_404(Category, pk=request.POST.get('category'))
-                product_count = Product.objects.filter(category=category).count()
-                print(f"The category- {category} with product_count- {product_count}")
-                if product_count > 0:
-                    messages.error(request, f'Cannot delete category "{category.name}" because it has {product_count} products.')
-                else:
-                    print(f"category- {category} deleted successfully")
-                    category.delete()
-                    messages.success(request, 'Category deleted successfully.')
-
-        if action == 'task':
-            task_action = request.POST.get('task_action')
-            if task_action == 'add':
-                if task_form.is_valid():
-                    task = task_form.save(commit=False)
-                    existing_status = request.POST.get('status')
-                    is_predefined = request.POST.get('is_predefined')
-                    order = request.POST.get('order')
-                    task.save()
-                    print("task added successfully")
-                    if existing_status:
-                        if is_predefined and order:
-                            status_task_form = StatusTaskForm({
-                                'status': existing_status,
-                                'task': task.pk,
-                                'is_predefined': is_predefined,
-                                'order': order
-                            })
-                            if status_task_form.is_valid():
-                                status_task_form.save()
-                                messages.success(request, 'Task and StatusTask added successfully.')
-                            else:
-                                print(status_task_form.errors)  # Debug statement to print form errors
+        task_action = request.POST.get('task_action')
+        print(f"Task action: {task_action}")
+        if task_action == 'add':
+            if task_form.is_valid():
+                task = task_form.save(commit=False)
+                existing_status = request.POST.get('status')
+                is_predefined = request.POST.get('is_predefined')
+                order = request.POST.get('order')
+                task.save()
+                print("Task added successfully")
+                if existing_status:
+                    if is_predefined and order:
+                        status_task_form = StatusTaskForm({
+                            'status': existing_status,
+                            'task': task.pk,
+                            'is_predefined': is_predefined,
+                            'order': order
+                        })
+                        if status_task_form.is_valid():
+                            status_task_form.save()
+                            messages.success(request, 'Task and StatusTask added successfully.')
+                            print("Task and StatusTask added successfully")
                         else:
-                            StatusTask.objects.create(status_id=existing_status, task=task, is_predefined=False)
-                            messages.success(request, 'Task added and mapped to status successfully.')
+                            messages.error(request, 'Error adding StatusTask.')
+                            print("Error adding StatusTask")
                     else:
-                        messages.success(request, 'Task added successfully.')
+                        StatusTask.objects.create(status_id=existing_status, task=task, is_predefined=False)
+                        messages.success(request, 'Task added and mapped to status successfully.')
+                        print("Task added and mapped to status successfully")
                 else:
-                    print(task_form.errors)  # Debug statement to print form errors
-            elif task_action == 'delete':
-                selected_task = request.POST.get('existing_tasks')
-                if selected_task:
-                    if selected_task.startswith('status_task_'):
-                        status_task_id = int(selected_task.split('_')[2])
-                        status_task = get_object_or_404(StatusTask, pk=status_task_id)
-                        status_task.delete()
-                        messages.success(request, 'StatusTask deleted successfully.')
-                    elif selected_task.startswith('task_'):
-                        task_id = int(selected_task.split('_')[1])
-                        task = get_object_or_404(Task, pk=task_id)
-                        task.delete()
-                        messages.success(request, 'Task deleted successfully.')
-
-        if action in formsets and formsets[action].is_valid():
-            formsets[action].save()
-            messages.success(request, f'{action.capitalize()}s updated successfully.')
-
+                    messages.success(request, 'Task added successfully.')
+                    print("Task added successfully")
+            else:
+                messages.error(request, 'Error adding task.')
+                print("Error adding task")
+        elif task_action == 'delete':
+            selected_task = request.POST.get('existing_tasks')
+            print(f"Selected task: {selected_task}")
+            if selected_task:
+                if selected_task.startswith('status_task_'):
+                    status_task_id = int(selected_task.split('_')[2])
+                    status_task = get_object_or_404(StatusTask, pk=status_task_id)
+                    status_task.delete()
+                    messages.success(request, 'StatusTask deleted successfully.')
+                    print("StatusTask deleted successfully")
+                elif selected_task.startswith('task_'):
+                    task_id = int(selected_task.split('_')[1])
+                    task = get_object_or_404(Task, pk=task_id)
+                    task.delete()
+                    messages.success(request, 'Task deleted successfully.')
+                    print("Task deleted successfully")
+        task_form = TaskForm()
+        status_task_form = StatusTaskForm()
         return render(request, self.template_name, {
-            'formsets': formsets,
-            'selected_action': action,
-            'category_form': category_form,
             'task_form': task_form,
-            'status_task_form': status_task_form,
-            'categories_exist': Category.objects.exists(),
+            'status_task_form': status_task_form
         })
-    
+
+class ManageLocationsView(View):
+    template_name = 'manage_locations.html'
+
+    def get(self, request):
+        print("ManageLocationsView GET request")
+        formset = LocationFormSet(queryset=Location.objects.all())
+        print("Rendering manage_locations.html template")
+        return render(request, self.template_name, {'formset': formset})
+
+    def post(self, request):
+        print("ManageLocationsView POST request")
+        formset = LocationFormSet(request.POST)
+        if formset.is_valid():
+            formset.save()
+            messages.success(request, 'Locations updated successfully.')
+            print("Locations updated successfully")
+        else:
+            messages.error(request, 'Error updating locations.')
+            print("Error updating locations")
+        return render(request, self.template_name, {'formset': formset})
+   
 def get_predefined_tasks(request):
     status_id = request.GET.get('status_id')
     if status_id:

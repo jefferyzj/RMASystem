@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Locations{% endblock %}
+
+{% block extra_head %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Display messages and handle redirection
+        const messageContainer = document.querySelector('.messages');
+        if (messageContainer && messageContainer.children.length > 0) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.classList.add(messageContainer.children[0].classList.contains('alert-success') ? 'toast-success' : 'toast-error');
+            toast.innerHTML = messageContainer.children[0].innerHTML;
+            document.body.appendChild(toast);
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+                window.location.href = "{% url 'manage_locations' %}";
+            }, 3000);
+        }
+    });
+</script>
+{% endblock %}
+
+{% block content %}
+<h1>Manage Locations</h1>
+
+<div id="message-container">
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+        <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<form method="post">
+    {% csrf_token %}
+    {{ formset.management_form }}
+    <table>
+        {% for form in formset %}
+            <tr>
+                <td><label for="{{ form.action.id_for_label }}">{{ form.action.label }}</label></td>
+                <td>{{ form.action }}</td>
+                <td><label for="{{ form.rack_name.id_for_label }}">{{ form.rack_name.label }}</label></td>
+                <td>{{ form.rack_name }}</td>
+                <td><label for="{{ form.layer_number.id_for_label }}">{{ form.layer_number.label }}</label></td>
+                <td>{{ form.layer_number }}</td>
+                <td><label for="{{ form.num_spaces_per_layer.id_for_label }}">{{ form.num_spaces_per_layer.label }}</label></td>
+                <td>{{ form.num_spaces_per_layer }}</td>
+                <td><label for="{{ form.remove_layer_number.id_for_label }}">{{ form.remove_layer_number.label }}</label></td>
+                <td>{{ form.remove_layer_number }}</td>
+                <td><label for="{{ form.remove_rack_name.id_for_label }}">{{ form.remove_rack_name.label }}</label></td>
+                <td>{{ form.remove_rack_name }}</td>
+                <td>{{ form.DELETE }}</td>
+            </tr>
+        {% endfor %}
+    </table>
+    <button type="submit" title="Save to update locations">Save to update locations</button>
+</form>
+{% endblock %}

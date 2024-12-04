@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Statuses{% endblock %}
+
+{% block extra_head %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Display messages and handle redirection
+        const messageContainer = document.querySelector('.messages');
+        if (messageContainer && messageContainer.children.length > 0) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.classList.add(messageContainer.children[0].classList.contains('alert-success') ? 'toast-success' : 'toast-error');
+            toast.innerHTML = messageContainer.children[0].innerHTML;
+            document.body.appendChild(toast);
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+                window.location.href = "{% url 'manage_statuses' %}";
+            }, 3000);
+        }
+    });
+</script>
+{% endblock %}
+
+{% block content %}
+<h1>Manage Statuses</h1>
+
+<div id="message-container">
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+        <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<form method="post">
+    {% csrf_token %}
+    {{ formset.management_form }}
+    <table>
+        {% for form in formset %}
+            <tr>
+                <td><label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label></td>
+                <td>{{ form.name }}</td>
+                <td><label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label></td>
+                <td>{{ form.description }}</td>
+                <td><label for="{{ form.is_closed.id_for_label }}">{{ form.is_closed.label }}</label></td>
+                <td>{{ form.is_closed }}</td>
+                <td>{{ form.DELETE }}</td>
+            </tr>
+        {% endfor %}
+    </table>
+    <button type="submit" title="Save to update statuses">Save to update statuses</button>
+</form>
+{% endblock %}
