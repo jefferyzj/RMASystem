@@ -16,7 +16,7 @@
     }
 
     function fetchCategories() {
-        fetch("{% url 'manage_categories' %}", {
+        fetch("{% url 'fetch_categories' %}", {
             headers: {
                 'X-Requested-With': 'XMLHttpRequest'
             }

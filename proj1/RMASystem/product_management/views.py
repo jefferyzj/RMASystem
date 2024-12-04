@@ -228,19 +228,13 @@ class ManageCategoriesView(View):
 
     def get(self, request):
         print("ManageCategoriesView GET request")
-        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-            categories = Category.objects.annotate(product_count=Count('products'))
-            data = [{'name': category.name, 'product_count': category.product_count} for category in categories]
-            print("Returning JSON response for categories")
-            return JsonResponse(data, safe=False)
-        else:
-            category_form = CategoryForm()
-            categories_exist = Category.objects.exists()
-            print("Rendering manage_categories.html template")
-            return render(request, self.template_name, {
-                'category_form': category_form,
-                'categories_exist': categories_exist
-            })
+        category_form = CategoryForm()
+        categories_exist = Category.objects.exists()
+        print("Rendering manage_categories.html template")
+        return render(request, self.template_name, {
+            'category_form': category_form,
+            'categories_exist': categories_exist
+        })
 
     def post(self, request):
         print("ManageCategoriesView POST request")
@@ -333,7 +327,7 @@ class ManageTasksView(View):
                             print("Task and StatusTask added successfully")
                         else:
                             messages.error(request, 'Error adding StatusTask.')
-                            print("Error adding StatusTask")
+                            print("Error adding StatusTask because status_task_form is invalid")
                     else:
                         StatusTask.objects.create(status_id=existing_status, task=task, is_predefined=False)
                         messages.success(request, 'Task added and mapped to status successfully.')
@@ -343,7 +337,7 @@ class ManageTasksView(View):
                     print("Task added successfully")
             else:
                 messages.error(request, 'Error adding task.')
-                print("Error adding task")
+                print("Error adding task because task_form is invalid")
         elif task_action == 'delete':
             selected_task = request.POST.get('existing_tasks')
             print(f"Selected task: {selected_task}")
@@ -389,6 +383,9 @@ class ManageLocationsView(View):
         return render(request, self.template_name, {'formset': formset})
    
 def get_predefined_tasks(request):
+    """
+    helper function to fetch predefined tasks that use in manage_tasks.html
+    """
     status_id = request.GET.get('status_id')
     if status_id:
         tasks = StatusTask.objects.filter(status_id=status_id, is_predefined=True).values('task__task_name', 'order')
@@ -397,6 +394,9 @@ def get_predefined_tasks(request):
     return JsonResponse({'tasks': []})
 
 def get_order_choices(request):
+    """
+    helper function to fetch order choices that use in manage_tasks.html
+    """
     status_id = request.GET.get('status_id')
     if status_id:
         predefined_tasks = StatusTask.objects.filter(status_id=status_id, is_predefined=True).order_by('order')
@@ -404,3 +404,14 @@ def get_order_choices(request):
         choices = [{'value': i, 'display': i} for i in range(1, max_order + 1)]
         return JsonResponse({'choices': choices})
     return JsonResponse({'choices': []})
+
+
+def fetch_categories(request):
+    """
+    helper function to fetch categories that use in manage_categories.html
+    """
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        categories = Category.objects.annotate(product_count=Count('products'))
+        data = [{'name': category.name, 'product_count': category.product_count} for category in categories]
+        return JsonResponse(data, safe=False)
+    return JsonResponse({'error': 'Invalid request'}, status=400)

@@ -109,12 +109,21 @@ class StatusTask(OrderedModel):
         if not self.is_predefined:
             self.order = None
         elif self.pk is None:  # just care about the new instances
-                self.insert_at_order()
+            print(f"insert at order, order is {self.order}")
+            self.insert_at_order()
+            print(f"before save, order is {self.order}")
         super().save(*args, **kwargs)
+        print(f"after save, order is {self.order}")
 
     def insert_at_order(self):
         predefined_tasks = StatusTask.objects.filter(status=self.status, is_predefined=True).order_by('order')
-        predefined_tasks.filter(order__gte=self.order).update(order=models.F('order') + 1)
+        if predefined_tasks.exists():
+            print(f"already exist predefined status tasks")
+            predefined_tasks.filter(order__gte=self.order).update(order=models.F('order') + 1)
+        else:
+            print(f"no predefined status tasks")
+            self.order = 1  # Ensure the first predefined task has order 1
+
 
 
     def __str__(self):

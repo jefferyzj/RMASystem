@@ -85,10 +85,13 @@ class StatusTaskForm(BaseForm):
         self.fields['existing_tasks'].choices = self.get_existing_tasks_choices()
 
     def get_existing_tasks_choices(self):
+        """
+        helper function to get the choices for the existing tasks dropdown
+        """
         choices = []
         status_tasks = StatusTask.objects.all()
         for status_task in status_tasks:
-            label = f"{status_task.task.task_name} - Status: {status_task.status.name} (Predefined: {status_task.is_predefined})"
+            label = f"{status_task.task.task_name} - Status: {status_task.status.name} (Predefined: {status_task.is_predefined}) - Order: {status_task.order}"
             choices.append((f"status_task_{status_task.pk}", label))
         tasks_without_status = Task.objects.filter(task_statuses__isnull=True)
         for task in tasks_without_status:
