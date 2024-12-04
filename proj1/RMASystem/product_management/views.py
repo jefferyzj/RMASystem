@@ -311,10 +311,10 @@ class ManageTasksView(View):
                 existing_status = request.POST.get('status')
                 is_predefined = request.POST.get('is_predefined')
                 order = request.POST.get('order')
-                
+                task.save() #add task to database, if counter error occurs, task will be deleted
                 if existing_status:
                     if is_predefined and order:
-                        task.save()
+
                         status_task_form = StatusTaskForm({
                             'status': existing_status,
                             'task': task.pk,
@@ -331,18 +331,18 @@ class ManageTasksView(View):
                             task.delete()
                             print("Error adding StatusTask because status_task_form is invalid")
                     else:
-                        task.save()
                         print("Task added and mapped to status without predefined and order successfully")
                         StatusTask.objects.create(status_id=existing_status, task=task, is_predefined=False)
                         messages.success(request, 'Task added and mapped to status successfully.')
                         
                     print("Task added successfully with mapping to status")
                 else:
-                    task.save()
+    
                     messages.success(request, 'Task added successfully.')
                     print("Task added successfully without mapping to status")
             else:
                 messages.error(request, 'Error adding task.')
+                task.delete()
                 print("Error adding task because task_form is invalid")
         elif task_action == 'delete':
             selected_task = request.POST.get('existing_tasks')
