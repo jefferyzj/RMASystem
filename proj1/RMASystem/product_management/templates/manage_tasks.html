@@ -126,14 +126,23 @@
 </div>
 
 <div>
-    <label><input type="radio" name="task_action" value="add" checked title="Add Task"> Add Task</label>
+    <label><input type="radio" name="task_action" value="add" title="Add Task"> Add Task</label>
     <label><input type="radio" name="task_action" value="delete" title="Delete Task"> Delete Task</label>
+</div>
+
+<div id="display-task-section" class="task-action-section" style="display: block;">
+    <h3>Existing Tasks</h3>
+    <ul>
+        {% for value, label in existing_tasks %}
+            <li>{{ label }}</li>
+        {% endfor %}
+    </ul>
 </div>
 
 <form method="post" id="add-task-form">
     {% csrf_token %}
     <input type="hidden" name="task_action" value="add">
-    <div id="add-task-section" class="task-action-section">
+    <div id="add-task-section" class="task-action-section" style="display: none;">
         <h3>Add Task</h3>
         <label for="{{ task_form.task_name.id_for_label }}">{{ task_form.task_name.label }}</label>
         {{ task_form.task_name }}

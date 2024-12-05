@@ -293,10 +293,12 @@ class ManageTasksView(View):
         print("ManageTasksView GET request")
         task_form = TaskForm()
         status_task_form = StatusTaskForm()
+        existing_tasks = StatusTask.get_existing_tasks_choices(show_desc=True)
         print("Rendering manage_tasks.html template")
         return render(request, self.template_name, {
             'task_form': task_form,
-            'status_task_form': status_task_form
+            'status_task_form': status_task_form,
+            'existing_tasks': existing_tasks
         })
     
     def post(self, request):
@@ -311,8 +313,8 @@ class ManageTasksView(View):
                 existing_status = request.POST.get('status')
                 is_predefined = request.POST.get('is_predefined')
                 order = request.POST.get('order')
-                #add task to database with task_form.save since they do the same thing as task.save.
-                # if counter error, task will be deleted
+                # Add task to database with task_form.save since they do the same thing as task.save.
+                # If counter error, task will be deleted
                 task_form.save() 
                 if existing_status:                 
                     status_task_form = StatusTaskForm({
@@ -343,26 +345,46 @@ class ManageTasksView(View):
                 print("Error adding task because task_form is invalid")
         
         elif task_action == 'delete':
-            selected_task = request.POST.get('existing_tasks')
-            print(f"Selected task: {selected_task}")
-            if selected_task:
-                if selected_task.startswith('status_task_'):
-                    status_task_id = int(selected_task.split('_')[2])
-                    status_task = get_object_or_404(StatusTask, pk=status_task_id)
-                    status_task.delete()
-                    messages.success(request, 'StatusTask deleted successfully.')
-                    print("StatusTask deleted successfully")
-                elif selected_task.startswith('task_'):
-                    task_id = int(selected_task.split('_')[1])
-                    task = get_object_or_404(Task, pk=task_id)
-                    task.delete()
-                    messages.success(request, 'Task deleted successfully.')
-                    print("Task deleted successfully")
+            selected_task_pk = request.POST.get('existing_tasks')
+            print(f"Selected task PK: {selected_task_pk}")
+            if selected_task_pk:
+                try:
+                    # Try to retrieve as StatusTask first
+                    status_task = StatusTask.objects.get(pk=selected_task_pk)
+                    task = status_task.task
+                    product_count = ProductTask.objects.filter(task=task).count()
+                    if product_count > 0:
+                        messages.error(request, 'Cannot delete task with associated products.')
+                        print("Cannot delete task with associated products")
+                    else:
+                        status_task.delete()
+                        task.delete()
+                        messages.success(request, 'StatusTask and associated Task deleted successfully.')
+                        print("StatusTask and associated Task deleted successfully")
+                except StatusTask.DoesNotExist:
+                    # If not a StatusTask, try to retrieve as Task
+                    try:
+                        task = Task.objects.get(pk=selected_task_pk)
+                        product_count = ProductTask.objects.filter(task=task).count()
+                        if product_count > 0:
+                            messages.error(request, 'Cannot delete task with associated products.')
+                            print("Cannot delete task with associated products")
+                        else:
+                            task.delete()
+                            messages.success(request, 'Task deleted successfully.')
+                            print("Task deleted successfully")
+                    except Task.DoesNotExist:
+                        messages.error(request, 'Task not found.')
+                        print("Task not found")
+
+        
         task_form = TaskForm()
         status_task_form = StatusTaskForm()
+        existing_tasks = StatusTask.get_existing_tasks_choices(show_desc=True)
         return render(request, self.template_name, {
             'task_form': task_form,
-            'status_task_form': status_task_form
+            'status_task_form': status_task_form,
+            'existing_tasks': existing_tasks
         })
 
 class ManageLocationsView(View):

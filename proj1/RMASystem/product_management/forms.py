@@ -82,22 +82,7 @@ class StatusTaskForm(forms.ModelForm):
             self.fields['order'].choices = [(i, i) for i in range(1, predefined_tasks.count() + 2)]
 
         # Customize the choices for existing tasks to include status and predefined information
-        self.fields['existing_tasks'].choices = self.get_existing_tasks_choices()
-
-    def get_existing_tasks_choices(self):
-        """
-        Helper function to get the choices for the existing tasks dropdown
-        """
-        choices = []
-        status_tasks = StatusTask.objects.all()
-        for status_task in status_tasks:
-            label = f"{status_task.task.task_name} - Status: {status_task.status.name} (Predefined: {status_task.is_predefined}) - Order: {status_task.order}"
-            choices.append((f"status_task_{status_task.pk}", label))
-        tasks_without_status = Task.objects.filter(task_statuses__isnull=True)
-        for task in tasks_without_status:
-            label = f"{task.task_name} (No status mapping)"
-            choices.append((f"task_{task.pk}", label))
-        return choices
+        self.fields['existing_tasks'].choices = StatusTask.get_existing_tasks_choices()
 
     def clean(self):
         cleaned_data = super().clean()

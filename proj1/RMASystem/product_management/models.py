@@ -85,7 +85,7 @@ class StatusTask(OrderedModel):
     This model is used to record the tasks linked to a status. 
     Can use predefined tasks with order to indicate if the tasks should be added to product 
     when the product is updated to the status.
-    Order is just for predefined tasks.
+    Order is for all statustask.
     """
     status = models.ForeignKey(Status, related_name='status_tasks', on_delete=models.CASCADE)
     task = models.ForeignKey(Task, related_name='task_statuses', on_delete=models.CASCADE)
@@ -126,6 +126,26 @@ class StatusTask(OrderedModel):
         
     def __str__(self):
         return f'- The task {self.task.task_name} under - status {self.status.name} - with the order {self.order}'
+    
+    @classmethod
+    def get_existing_tasks_choices(cls, show_desc=False):
+        """
+        Helper function to get the choices for the existing tasks dropdown
+        """
+        choices = []
+        status_tasks = cls.objects.all()
+        for status_task in status_tasks:
+            product_count = ProductTask.objects.filter(task=status_task.task).count()
+            description = f" - Description: {status_task.task.description}" if show_desc else ""
+            label = f"{status_task.task.task_name} - Status: {status_task.status.name} (Predefined: {status_task.is_predefined}) - Order: {status_task.order} - Products: {product_count}{description}"
+            choices.append((status_task.pk, label))
+        tasks_without_status = Task.objects.filter(task_statuses__isnull=True)
+        for task in tasks_without_status:
+            product_count = ProductTask.objects.filter(task=task).count()
+            description = f" - Description: {task.description}" if show_desc else ""
+            label = f"{task.task_name} (No status mapping) - Products: {product_count}{description}"
+            choices.append((task.pk, label))
+        return choices
 
 class ProductTask(TimeStampedModel, OrderedModel):
     """
