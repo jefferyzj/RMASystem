@@ -37,9 +37,27 @@ class CategoryForm(BaseForm):
         return name
 
 class StatusForm(BaseForm):
+    possible_next_statuses = forms.ModelMultipleChoiceField(
+        queryset=Status.objects.all(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        label="Possible Next Statuses"
+    )
+
     class Meta:
         model = Status
-        fields = ['name', 'description', 'is_closed']
+        fields = ['name', 'description', 'is_closed', 'possible_next_statuses']
+
+    def save(self, commit=True):
+        status = super().save(commit=False)
+        if commit:
+            status.save()
+            self.save_m2m()
+            possible_next_statuses = self.cleaned_data.get('possible_next_statuses')
+            if possible_next_statuses:
+                for next_status in possible_next_statuses:
+                    StatusTransition.objects.get_or_create(from_status=status, to_status=next_status)
+        return status
 
 class TaskForm(BaseForm):
     task_name = forms.CharField(max_length=100, label="Task Name")
@@ -359,7 +377,7 @@ class CheckinOrUpdateForm(forms.Form):
 
 # Formsets for featureManageView
 CategoryFormSet = modelformset_factory(Category, form=CategoryForm, extra=1, can_delete=False)
-StatusFormSet = modelformset_factory(Status, form=StatusForm, extra=1, can_delete=True)
+StatusFormSet = modelformset_factory(Status, form=StatusForm, extra=1)
 TaskFormSet = modelformset_factory(Task, form=TaskForm, extra=1, can_delete=False)
 StatusTaskFormSet = modelformset_factory(StatusTask, form=StatusTaskForm, extra=1, can_delete=True)
 LocationFormSet = modelformset_factory(Location, form=LocationForm, extra=1, can_delete=True)

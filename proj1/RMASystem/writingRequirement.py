@@ -52,3 +52,18 @@ Add a predefined task of a status with an order.
 Ensure predefined tasks always stand at the head of the order.
 Allow the user to insert the predefined task at a specific position among the predefined tasks or at the tail of the predefined tasks.
 """
+
+"""
+Requirement about status manage:
+Add Status:
+
+The user must provide a name for the status.
+There is a checkbox to indicate if it is a closed status.
+There is a field as a checkbox named "Possible Next Statuses" allowing the user to select multiple possible next statuses of the new status from the existing statuses.
+This field is optional.
+In this process, it will create StatusTransition instances to remember this mapping.
+Delete Status:
+
+The user can delete an existing status.
+The deletion should be handled separately from the addition/updating of statuses.
+"""

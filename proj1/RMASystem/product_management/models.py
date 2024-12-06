@@ -64,21 +64,6 @@ class StatusTransition(TimeStampedModel):
             raise ValidationError(f"Cannot create a transition from a closed status: {self.from_status.name}")
         super().save(*args, **kwargs)
 
-class Task(TimeStampedModel):
-    task_name = models.CharField(
-        max_length=100, 
-        help_text="Action to be performed in this task", 
-        default="Default Action"
-    )
-    description = models.TextField(
-        help_text="Detailed description of the task", 
-        blank=True, 
-        null=True
-    )
-
-    def __str__(self):
-        return f"This Task: Action: {self.task_name} | description: {self.description}."
-
 
 class StatusTask(OrderedModel):
     """
@@ -87,8 +72,8 @@ class StatusTask(OrderedModel):
     when the product is updated to the status.
     Order is for all statustask.
     """
-    status = models.ForeignKey(Status, related_name='status_tasks', on_delete=models.CASCADE)
-    task = models.ForeignKey(Task, related_name='task_statuses', on_delete=models.CASCADE)
+    status = models.ForeignKey('Status', related_name='status_tasks', on_delete=models.CASCADE)
+    task = models.ForeignKey('Task', related_name='task_statuses', on_delete=models.CASCADE)
     is_predefined = models.BooleanField(default=False, help_text="Indicates if the task is predefined for this status")
     order = models.PositiveIntegerField(default=1, editable=True, db_index=True)
     
@@ -146,6 +131,23 @@ class StatusTask(OrderedModel):
             label = f"{task.task_name} (No status mapping) - Products: {product_count}{description}"
             choices.append((task.pk, label))
         return choices
+
+
+class Task(TimeStampedModel):
+    task_name = models.CharField(
+        max_length=100, 
+        help_text="Action to be performed in this task", 
+        default="Default Action"
+    )
+    description = models.TextField(
+        help_text="Detailed description of the task", 
+        blank=True, 
+        null=True
+    )
+
+    def __str__(self):
+        return f"This Task: Action: {self.task_name} | description: {self.description}."
+
 
 class ProductTask(TimeStampedModel, OrderedModel):
     """

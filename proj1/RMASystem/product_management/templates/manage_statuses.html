@@ -4,7 +4,30 @@
 
 {% block extra_head %}
 <script>
+    function toggleStatusAction() {
+        const selectedStatusAction = document.querySelector('input[name="status_action"]:checked');
+        if (selectedStatusAction) {
+            document.querySelectorAll('.status-action-section').forEach(section => {
+                section.style.display = 'none';
+            });
+            const activeSection = document.getElementById(`${selectedStatusAction.value}-status-section`);
+            if (activeSection) {
+                activeSection.style.display = 'block';
+                console.log(`Active section: ${activeSection.id}`);
+            }
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
+        // Trigger change event on page load to set initial visibility
+        toggleStatusAction();
+
+        // Add event listeners to radio buttons
+        const statusActionRadios = document.querySelectorAll('input[name="status_action"]');
+        statusActionRadios.forEach(radio => {
+            radio.addEventListener('change', toggleStatusAction);
+        });
+
         // Display messages and handle redirection
         const messageContainer = document.querySelector('.messages');
         if (messageContainer && messageContainer.children.length > 0) {
@@ -38,22 +61,39 @@
     {% endif %}
 </div>
 
-<form method="post">
+<div>
+    <label><input type="radio" name="status_action" value="add" checked title="Add Status"> Add Status</label>
+    <label><input type="radio" name="status_action" value="delete" title="Delete Status"> Delete Status</label>
+</div>
+
+<form method="post" id="add-status-form">
     {% csrf_token %}
-    {{ formset.management_form }}
-    <table>
-        {% for form in formset %}
-            <tr>
-                <td><label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label></td>
-                <td>{{ form.name }}</td>
-                <td><label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label></td>
-                <td>{{ form.description }}</td>
-                <td><label for="{{ form.is_closed.id_for_label }}">{{ form.is_closed.label }}</label></td>
-                <td>{{ form.is_closed }}</td>
-                <td>{{ form.DELETE }}</td>
-            </tr>
-        {% endfor %}
-    </table>
-    <button type="submit" title="Save to update statuses">Save to update statuses</button>
+    <div id="add-status-section" class="status-action-section">
+        <h3>Add Statuses</h3>
+        {{ formset.management_form }}
+        {{formset.as_p}}
+            
+    
+        <button type="submit" title="Save statuses">Save statuses</button>
+    </div>
 </form>
+
+<form method="post" id="delete-status-form">
+    {% csrf_token %}
+    <div id="delete-status-section" class="status-action-section" style="display: none;">
+        <h3>Delete Statuses</h3>
+        <ul>
+            {% for status in statuses %}
+                <li>
+                    {{ status.name }} - {{ status.description }} - Closed: {{ status.is_closed }}
+                    <input type="hidden" name="status_action" value="delete">
+                    <input type="hidden" name="status_id" value="{{ status.pk }}">
+                    <button type="submit">Delete</button>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+</form>
+
+<button onclick="window.location.href='{% url 'feature_manage' %}'" title="Go back to manage other features">Go back to manage other features</button>
 {% endblock %}

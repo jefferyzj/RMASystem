@@ -2,7 +2,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.views.generic import View, ListView, UpdateView, CreateView, FormView
 from django.urls import reverse_lazy
 from .models import Product, ProductTask, Category, Task, Location, Status, StatusTransition, ProductStatus, StatusTask
-from .forms import ProductForm, ProductTaskForm, TaskForm, LocationForm, StatusTransitionForm, CheckinOrUpdateForm, CategoryForm, StatusTaskForm
+from .forms import ProductForm, ProductTaskForm, TaskForm, LocationForm, StatusTransitionForm, CheckinOrUpdateForm, CategoryForm, StatusTaskForm, StatusForm
 from django.core.exceptions import ValidationError
 from django_filters.views import FilterView
 from .filters import ProductFilter
@@ -272,20 +272,43 @@ class ManageStatusesView(View):
         print("ManageStatusesView GET request")
         formset = StatusFormSet(queryset=Status.objects.all())
         print("Rendering manage_statuses.html template")
-        return render(request, self.template_name, {'formset': formset})
-
+        return render(request, self.template_name, {
+            'formset': formset,
+            'statuses': Status.objects.all()
+        })
+    
     def post(self, request):
         print("ManageStatusesView POST request")
-        formset = StatusFormSet(request.POST)
-        if formset.is_valid():
-            formset.save()
-            messages.success(request, 'Statuses updated successfully.')
-            print("Statuses updated successfully")
-        else:
-            messages.error(request, 'Error updating statuses.')
-            print("Error updating statuses")
-        return render(request, self.template_name, {'formset': formset})
-
+        status_action = request.POST.get('status_action')
+        if status_action == 'add':
+            formset = StatusFormSet(request.POST)
+            if formset.is_valid():
+                instances = formset.save(commit=False)
+                for instance in instances:
+                    instance.save()
+                    possible_next_statuses = instance.possible_next_statuses.all()
+                    if possible_next_statuses:
+                        for next_status in possible_next_statuses:
+                            StatusTransition.objects.get_or_create(from_status=instance, to_status=next_status)
+                formset.save_m2m()
+                messages.success(request, 'Statuses updated successfully.')
+                print("Statuses updated successfully")
+            else:
+                messages.error(request, 'Error updating statuses.')
+                print("Error updating statuses")
+        elif status_action == 'delete':
+            status_id = request.POST.get('status_id')
+            status = get_object_or_404(Status, pk=status_id)
+            status.delete()
+            messages.success(request, 'Status deleted successfully.')
+            print("Status deleted successfully")
+        
+        formset = StatusFormSet(queryset=Status.objects.all())
+        return render(request, self.template_name, {
+            'formset': formset,
+            'statuses': Status.objects.all()
+        })
+    
 class ManageTasksView(View):
     template_name = 'manage_tasks.html'
 
