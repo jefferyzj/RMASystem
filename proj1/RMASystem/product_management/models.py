@@ -37,13 +37,18 @@ class Location(models.Model):
 class Status(TimeStampedModel):
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True, null=True)
-    is_closed = models.BooleanField(default=False, help_text="Indicates if the status is a closed status")
+    is_closed = models.BooleanField(default=False)   
     
 
     def __str__(self):
         return self.name
     
-
+    def get_product_count(self):
+        return Product.objects.filter(current_status=self).count()
+    
+    def get_task_count(self):
+        return StatusTask.objects.filter(status=self).count()
+    
     def get_possible_next_statuses(self):
         transitions = StatusTransition.objects.filter(from_status=self).select_related('to_status').order_by('created')
         return [transition.to_status for transition in transitions]
@@ -63,6 +68,21 @@ class StatusTransition(TimeStampedModel):
         if self.from_status.is_closed:
             raise ValidationError(f"Cannot create a transition from a closed status: {self.from_status.name}")
         super().save(*args, **kwargs)
+    
+    @classmethod
+    def get_all_transitions_by_status(cls):
+        statuses = Status.objects.all().order_by('name')
+        transition_dict = {}
+        for status in statuses:
+            if status.is_closed:
+                transition_dict[status] = 'Closed'
+            else:
+                transitions = cls.objects.filter(from_status=status).select_related('to_status').order_by('to_status__name')
+                if transitions:
+                    transition_dict[status] = [transition.to_status for transition in transitions]
+                else:
+                    transition_dict[status] = 'Not mapped to next status yet'
+        return transition_dict
 
 
 class StatusTask(OrderedModel):

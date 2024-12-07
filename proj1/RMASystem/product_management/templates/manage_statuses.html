@@ -68,32 +68,51 @@
 
 <form method="post" id="add-status-form">
     {% csrf_token %}
+    <input type="hidden" name="status_action" value="add">
     <div id="add-status-section" class="status-action-section">
-        <h3>Add Statuses</h3>
+        <h3>Add Status</h3>
         {{ formset.management_form }}
-        {{formset.as_p}}
-            
-    
+        {{ formset.as_p }}
         <button type="submit" title="Save statuses">Save statuses</button>
     </div>
 </form>
 
-<form method="post" id="delete-status-form">
-    {% csrf_token %}
-    <div id="delete-status-section" class="status-action-section" style="display: none;">
-        <h3>Delete Statuses</h3>
-        <ul>
-            {% for status in statuses %}
-                <li>
-                    {{ status.name }} - {{ status.description }} - Closed: {{ status.is_closed }}
+<div id="delete-status-section" class="status-action-section" style="display: none;">
+    <h3>Delete Statuses</h3>
+    <ul>
+        {% for status in statuses %}
+            <li>
+                Status: {{ status.name }} - Closed: {{ status.is_closed }} - Products Count: {{ status.get_product_count }} - Tasks Count: {{ status.get_task_count }}
+                <form method="post" style="display:inline;">
+                    {% csrf_token %}
                     <input type="hidden" name="status_action" value="delete">
                     <input type="hidden" name="status_id" value="{{ status.pk }}">
                     <button type="submit">Delete</button>
-                </li>
-            {% endfor %}
-        </ul>
-    </div>
-</form>
+                </form>
+            </li>
+        {% endfor %}
+    </ul>
+</div>
+
+<div id="transitions-section">
+    <h3>Existing Status Transitions</h3>
+    <ul>
+        {% for from_status, to_statuses in transitions.items %}
+            <li>
+                {{ from_status.name }} -> 
+                {% if to_statuses == 'Closed' %}
+                    Closed
+                {% elif to_statuses == 'Not mapped to next status yet' %}
+                    Not mapped to next status yet
+                {% else %}
+                    {% for to_status in to_statuses %}
+                        {{ to_status.name }}{% if not forloop.last %}, {% endif %}
+                    {% endfor %}
+                {% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+</div>
 
 <button onclick="window.location.href='{% url 'feature_manage' %}'" title="Go back to manage other features">Go back to manage other features</button>
 {% endblock %}

@@ -41,7 +41,7 @@ class StatusForm(BaseForm):
         queryset=Status.objects.all(),
         required=False,
         widget=forms.CheckboxSelectMultiple,
-        label="Possible Next Statuses"
+        label="Possible Next Statuses",
     )
 
     class Meta:
@@ -57,6 +57,7 @@ class StatusForm(BaseForm):
             if possible_next_statuses:
                 for next_status in possible_next_statuses:
                     StatusTransition.objects.get_or_create(from_status=status, to_status=next_status)
+                    print("StatusTransition created")
         return status
 
 class TaskForm(BaseForm):
@@ -377,7 +378,8 @@ class CheckinOrUpdateForm(forms.Form):
 
 # Formsets for featureManageView
 CategoryFormSet = modelformset_factory(Category, form=CategoryForm, extra=1, can_delete=False)
-StatusFormSet = modelformset_factory(Status, form=StatusForm, extra=1)
+StatusFormSet = modelformset_factory(Status, form=StatusForm, extra=1, 
+                                     labels={'name': 'Status Name', 'is_closed': 'Is Closed?'})
 TaskFormSet = modelformset_factory(Task, form=TaskForm, extra=1, can_delete=False)
 StatusTaskFormSet = modelformset_factory(StatusTask, form=StatusTaskForm, extra=1, can_delete=True)
 LocationFormSet = modelformset_factory(Location, form=LocationForm, extra=1, can_delete=True)

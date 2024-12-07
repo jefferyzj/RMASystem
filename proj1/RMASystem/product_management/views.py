@@ -270,27 +270,24 @@ class ManageStatusesView(View):
 
     def get(self, request):
         print("ManageStatusesView GET request")
-        formset = StatusFormSet(queryset=Status.objects.all())
+        formset = StatusFormSet(queryset=Status.objects.none())  # Only include empty forms for adding
+        transitions = StatusTransition.get_all_transitions_by_status()
+        statuses = Status.objects.all()
         print("Rendering manage_statuses.html template")
         return render(request, self.template_name, {
             'formset': formset,
-            'statuses': Status.objects.all()
+            'statuses': statuses,
+            'transitions': transitions
         })
     
     def post(self, request):
         print("ManageStatusesView POST request")
         status_action = request.POST.get('status_action')
+        print(f"Got Status action: {status_action}")
         if status_action == 'add':
             formset = StatusFormSet(request.POST)
             if formset.is_valid():
-                instances = formset.save(commit=False)
-                for instance in instances:
-                    instance.save()
-                    possible_next_statuses = instance.possible_next_statuses.all()
-                    if possible_next_statuses:
-                        for next_status in possible_next_statuses:
-                            StatusTransition.objects.get_or_create(from_status=instance, to_status=next_status)
-                formset.save_m2m()
+                formset.save()
                 messages.success(request, 'Statuses updated successfully.')
                 print("Statuses updated successfully")
             else:
@@ -299,16 +296,29 @@ class ManageStatusesView(View):
         elif status_action == 'delete':
             status_id = request.POST.get('status_id')
             status = get_object_or_404(Status, pk=status_id)
-            status.delete()
-            messages.success(request, 'Status deleted successfully.')
-            print("Status deleted successfully")
+            if ProductStatus.objects.filter(status=status).exists():
+                messages.error(request, 'Cannot delete status with associated products.')
+                print("Cannot delete status with associated products")
+            elif StatusTask.objects.filter(status=status).exists():
+                messages.error(request, 'Cannot delete status with associated tasks.')
+                print("Cannot delete status with associated tasks")
+            else:
+                StatusTransition.objects.filter(from_status=status).delete()
+                StatusTransition.objects.filter(to_status=status).delete()
+                print(f"StatusTransition related to {status} deleted successfully")
+                status.delete()
+                messages.success(request, 'Status deleted successfully.')
+                print("Status deleted successfully")
         
-        formset = StatusFormSet(queryset=Status.objects.all())
+        formset = StatusFormSet(queryset=Status.objects.none())  # Only include empty forms for adding
+        transitions = StatusTransition.get_all_transitions_by_status()
+        statuses = Status.objects.all()
         return render(request, self.template_name, {
             'formset': formset,
-            'statuses': Status.objects.all()
+            'statuses': statuses,
+            'transitions': transitions
         })
-    
+
 class ManageTasksView(View):
     template_name = 'manage_tasks.html'
 

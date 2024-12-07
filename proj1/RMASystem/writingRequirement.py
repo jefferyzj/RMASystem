@@ -17,6 +17,9 @@
     #4. add functionality to add status with next possible status, and the status transition.
     #5 12/2, add task is generally done, but need to take care of insert the statustask created with an order, the save() method of statustask still need to develop
     #6 12/2 night/ finishe the add task part, but have not test it fully. Handle three case of add task.  still need to take care of delete task.
+    
+    #7 12/6 finish the manage status part, but can still develop its UI, and need to test it.
+    #8 12/6 consider to use soft delete for status, task, and some other models. Since we may need to delete status sometimes, but we don't want to loss the data like in productstatus, statusTask, and so on.
 """
 Things about feature_manage:
 
