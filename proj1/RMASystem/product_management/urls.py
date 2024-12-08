@@ -1,14 +1,32 @@
 from django.urls import path
-from .views import ProductListView, ProductDetailView, ProductUpdateView, ProductTaskView, AddTaskView, StatusTransitionView
+from .views import ProductListView, ProductDetailView, ProductTaskView, AddTaskView, StatusTransitionView, home_view
+from .views import (
+    home_view,
+    ProductListView,
+    ProductDetailView,
+    FeatureManageView,
+    CheckinOrUpdateView,
+    get_predefined_tasks,
+    get_order_choices,
+    fetch_categories,
+    ManageCategoriesView,
+    ManageStatusesView,
+    ManageTasksView,
+    ManageLocationsView
+)
 
 urlpatterns = [
-    path('products/', ProductListView.as_view(), name='products'),
-    path('products/<str:sn>/', ProductDetailView.as_view(), name='product_detail'),
-    path('products/<str:sn>/edit/', ProductUpdateView.as_view(), name='edit_product'),
-    path('products/<str:sn>/task/', ProductTaskView.as_view(), name='product_task'),
-    path('task/<int:task_id>/edit/', ProductTaskView.as_view(), name='edit_task'),
-    path('task/<int:task_id>/skip/', ProductTaskView.as_view(), name='skip_task'),
-    path('products/<str:sn>/add_task/', AddTaskView.as_view(), name='add_task'),
-    path('products/<int:product_id>/transition/', StatusTransitionView.as_view(), name='transition_status'),
+    path('', home_view, name='home'),
+    path('products/', ProductListView.as_view(), name='product_list'),
+    #path('products/<slug:sn>/', ProductDetailView.as_view(), name='product_detail'),
+    path('feature_manage/', FeatureManageView.as_view(), name='feature_manage'),
+    path('checkin_or_update/', CheckinOrUpdateView.as_view(), name='checkin_or_update'),
+    path('get_predefined_tasks/', get_predefined_tasks, name='get_predefined_tasks'),
+    path('get_order_choices/', get_order_choices, name='get_order_choices'),
+    path('fetch_categories/', fetch_categories, name='fetch_categories'),
+    path('manage_categories/', ManageCategoriesView.as_view(), name='manage_categories'),
+    path('manage_statuses/', ManageStatusesView.as_view(), name='manage_statuses'),
+    path('manage_tasks/', ManageTasksView.as_view(), name='manage_tasks'),
+    path('manage_locations/', ManageLocationsView.as_view(), name='manage_locations'),
     # Other URL patterns
 ]

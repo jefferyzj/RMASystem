@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Feature Manage{% endblock %}
+
+{% block content %}
+<h1>Feature Manage</h1>
+
+<form method="get">
+    <label><input type="radio" name="form_action" value="category" onclick="window.location.href='{% url 'manage_categories' %}'"> Manage Categories</label>
+    <label><input type="radio" name="form_action" value="status" onclick="window.location.href='{% url 'manage_statuses' %}'"> Manage Statuses</label>
+    <label><input type="radio" name="form_action" value="task" onclick="window.location.href='{% url 'manage_tasks' %}'"> Manage Tasks</label>
+    <label><input type="radio" name="form_action" value="location" onclick="window.location.href='{% url 'manage_locations' %}'"> Manage Locations</label>
+</form>
+{% endblock %}

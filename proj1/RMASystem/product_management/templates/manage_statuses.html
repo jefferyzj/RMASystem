@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Statuses{% endblock %}
+
+{% block extra_head %}
+<script>
+    function toggleStatusAction() {
+        const selectedStatusAction = document.querySelector('input[name="status_action"]:checked');
+        if (selectedStatusAction) {
+            document.querySelectorAll('.status-action-section').forEach(section => {
+                section.style.display = 'none';
+            });
+            const activeSection = document.getElementById(`${selectedStatusAction.value}-status-section`);
+            if (activeSection) {
+                activeSection.style.display = 'block';
+                console.log(`Active section: ${activeSection.id}`);
+            }
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Trigger change event on page load to set initial visibility
+        toggleStatusAction();
+
+        // Add event listeners to radio buttons
+        const statusActionRadios = document.querySelectorAll('input[name="status_action"]');
+        statusActionRadios.forEach(radio => {
+            radio.addEventListener('change', toggleStatusAction);
+        });
+
+        // Display messages and handle redirection
+        const messageContainer = document.querySelector('.messages');
+        if (messageContainer && messageContainer.children.length > 0) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.classList.add(messageContainer.children[0].classList.contains('alert-success') ? 'toast-success' : 'toast-error');
+            toast.innerHTML = messageContainer.children[0].innerHTML;
+            document.body.appendChild(toast);
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+                window.location.href = "{% url 'manage_statuses' %}";
+            }, 3000);
+        }
+    });
+</script>
+{% endblock %}
+
+{% block content %}
+<h1>Manage Statuses</h1>
+
+<div id="message-container">
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+        <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<div>
+    <label><input type="radio" name="status_action" value="add" checked title="Add Status"> Add Status</label>
+    <label><input type="radio" name="status_action" value="delete" title="Delete Status"> Delete Status</label>
+</div>
+
+<form method="post" id="add-status-form">
+    {% csrf_token %}
+    <input type="hidden" name="status_action" value="add">
+    <div id="add-status-section" class="status-action-section">
+        <h3>Add Status</h3>
+        {{ formset.management_form }}
+        {{ formset.as_p }}
+        <button type="submit" title="Save statuses">Save statuses</button>
+    </div>
+</form>
+
+<div id="delete-status-section" class="status-action-section" style="display: none;">
+    <h3>Delete Statuses</h3>
+    <ul>
+        {% for status in statuses %}
+            <li>
+                Status: {{ status.name }} - Closed: {{ status.is_closed }} - Products Count: {{ status.get_product_count }} - Tasks Count: {{ status.get_task_count }}
+                <form method="post" style="display:inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="status_action" value="delete">
+                    <input type="hidden" name="status_id" value="{{ status.pk }}">
+                    <button type="submit">Delete</button>
+                </form>
+            </li>
+        {% endfor %}
+    </ul>
+</div>
+
+<div id="transitions-section">
+    <h3>Existing Status Transitions</h3>
+    <ul>
+        {% for from_status, to_statuses in transitions.items %}
+            <li>
+                {{ from_status.name }} -> 
+                {% if to_statuses == 'Closed' %}
+                    Closed
+                {% elif to_statuses == 'Not mapped to next status yet' %}
+                    Not mapped to next status yet
+                {% else %}
+                    {% for to_status in to_statuses %}
+                        {{ to_status.name }}{% if not forloop.last %}, {% endif %}
+                    {% endfor %}
+                {% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+</div>
+
+<button onclick="window.location.href='{% url 'feature_manage' %}'" title="Go back to manage other features">Go back to manage other features</button>
+{% endblock %}

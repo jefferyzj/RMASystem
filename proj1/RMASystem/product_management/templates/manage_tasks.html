@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Tasks{% endblock %}
+
+{% block extra_head %}
+<script>
+    function toggleTaskAction() {
+        const selectedTaskAction = document.querySelector('input[name="task_action"]:checked');
+        if (selectedTaskAction) {
+            document.querySelectorAll('.task-action-section').forEach(section => {
+                section.style.display = 'none';
+            });
+            const activeSection = document.getElementById(`${selectedTaskAction.value}-task-section`);
+            if (activeSection) {
+                activeSection.style.display = 'block';
+                console.log(`Active section: ${activeSection.id}`);
+            }
+        }
+    }
+
+    function toggleOrderField() {
+        const isPredefined = document.querySelector('input[name="is_predefined"]');
+        const orderField = document.getElementById('order-field');
+        const predefinedTasksList = document.getElementById('predefined-tasks-list');
+        const predefinedTasksDescription = document.getElementById('predefined-tasks-description');
+        const statusSelect = document.querySelector('select[name="status"]');
+        if (isPredefined && orderField && predefinedTasksList && predefinedTasksDescription && statusSelect) {
+            if (isPredefined.checked && statusSelect.value) {
+                orderField.style.display = 'block';
+                predefinedTasksDescription.style.display = 'block';
+                statusSelect.setAttribute('required', 'required');
+                listPredefinedTasks(statusSelect.value);
+                updateOrderChoices(statusSelect.value);
+            } else {
+                orderField.style.display = 'none';
+                predefinedTasksList.innerHTML = '';
+                predefinedTasksDescription.style.display = 'none';
+                statusSelect.removeAttribute('required');
+            }
+        }
+    }
+
+    function listPredefinedTasks(statusId) {
+        fetch(`/get_predefined_tasks/?status_id=${statusId}`)
+            .then(response => response.json())
+            .then(data => {
+                const predefinedTasksList = document.getElementById('predefined-tasks-list');
+                predefinedTasksList.innerHTML = '';
+                data.tasks.forEach(task => {
+                    const listItem = document.createElement('li');
+                    listItem.textContent = `Task: ${task['task__task_name']}, Order: ${task.order}`;
+                    predefinedTasksList.appendChild(listItem);
+                });
+            })
+            .catch(error => console.error('Error fetching predefined tasks:', error));
+    }
+
+    function updateOrderChoices(statusId) {
+        fetch(`/get_order_choices/?status_id=${statusId}`)
+            .then(response => response.json())
+            .then(data => {
+                const orderField = document.querySelector('select[name="order"]');
+                orderField.innerHTML = '';
+                data.choices.forEach(choice => {
+                    const option = document.createElement('option');
+                    option.value = choice.value;
+                    option.textContent = choice.display;
+                    orderField.appendChild(option);
+                });
+            })
+            .catch(error => console.error('Error fetching order choices:', error));
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Trigger change event on page load to set initial visibility
+        toggleTaskAction();
+        toggleOrderField();
+
+        // Display messages and handle redirection
+        const messageContainer = document.querySelector('.messages');
+        if (messageContainer && messageContainer.children.length > 0) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.classList.add(messageContainer.children[0].classList.contains('alert-success') ? 'toast-success' : 'toast-error');
+            toast.innerHTML = messageContainer.children[0].innerHTML;
+            document.body.appendChild(toast);
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+                window.location.href = "{% url 'manage_tasks' %}";
+            }, 3000);
+        }
+
+        // Add event listeners to radio buttons
+        const taskActionRadios = document.querySelectorAll('input[name="task_action"]');
+        taskActionRadios.forEach(radio => {
+            radio.addEventListener('change', toggleTaskAction);
+        });
+
+        const isPredefinedCheckbox = document.querySelector('input[name="is_predefined"]');
+        if (isPredefinedCheckbox) {
+            isPredefinedCheckbox.addEventListener('change', toggleOrderField);
+        }
+
+        const statusSelect = document.querySelector('select[name="status"]');
+        if (statusSelect) {
+            statusSelect.addEventListener('change', toggleOrderField);
+        }
+    });
+</script>
+{% endblock %}
+
+{% block content %}
+<h1>Manage Tasks</h1>
+
+<div id="message-container">
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+        <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<div>
+    <label><input type="radio" name="task_action" value="add" title="Add Task"> Add Task</label>
+    <label><input type="radio" name="task_action" value="delete" title="Delete Task"> Delete Task</label>
+</div>
+
+<div id="display-task-section" class="task-action-section" style="display: block;">
+    <h3>Existing Tasks</h3>
+    <ul>
+        {% for value, label in existing_tasks %}
+            <li>{{ label }}</li>
+        {% endfor %}
+    </ul>
+</div>
+
+<form method="post" id="add-task-form">
+    {% csrf_token %}
+    <input type="hidden" name="task_action" value="add">
+    <div id="add-task-section" class="task-action-section" style="display: none;">
+        <h3>Add Task</h3>
+        <label for="{{ task_form.task_name.id_for_label }}">{{ task_form.task_name.label }}</label>
+        {{ task_form.task_name }}
+        <label for="{{ task_form.description.id_for_label }}">{{ task_form.description.label }}</label>
+        {{ task_form.description }}
+        <label for="{{ status_task_form.status.id_for_label }}">{{ status_task_form.status.label }}</label>
+        {{ status_task_form.status }}
+        <label for="{{ status_task_form.is_predefined.id_for_label }}">{{ status_task_form.is_predefined.label }}</label>
+        {{ status_task_form.is_predefined }}
+        <div id="order-field" style="display: none;">
+            <label for="{{ status_task_form.order.id_for_label }}">{{ status_task_form.order.label }}</label>
+            {{ status_task_form.order }}
+        </div>
+        <p id="predefined-tasks-description" style="display: none;">List of predefined tasks for the selected status:</p>
+        <ul id="predefined-tasks-list"></ul>
+        <button type="submit" name="task_action" value="add" title="Save to add task">Save to add task</button>
+    </div>
+</form>
+
+<form method="post" id="delete-task-form">
+    {% csrf_token %}
+    <input type="hidden" name="task_action" value="delete">
+    <div id="delete-task-section" class="task-action-section" style="display: none;">
+        <h3>Delete Task</h3>
+        <label for="{{ status_task_form.existing_tasks.id_for_label }}">{{ status_task_form.existing_tasks.label }}</label>
+        {{ status_task_form.existing_tasks }}
+        <button type="submit" name="task_action" value="delete" title="Save to delete task">Save to delete task</button>
+    </div>
+</form>
+
+<button onclick="window.location.href='{% url 'feature_manage' %}'" title="Go back to manage other features">Go back to manage other features</button>
+{% endblock %}

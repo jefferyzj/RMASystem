@@ -41,6 +41,8 @@ INSTALLED_APPS = [
     'crispy_forms',
     'model_utils',
     'django_extensions',
+    'django_filters',
+
 ]
 
 MIDDLEWARE = [
@@ -121,7 +123,11 @@ CRISPY_TEMPLATE_PACK = 'bootstrap4'
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+
+STATICFILES_DIRS = [
+    BASE_DIR / "product_management/static",
+]
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
