@@ -96,3 +96,17 @@ main {
     display: none;
 }
 
+/* Style for the clickable title */
+.clickable-title {
+    color: #007bff; /* Primary blue color */
+    text-decoration: none;
+    font-size: 2em; /* Larger font size */
+    font-weight: bold; /* Bold text */
+    display: inline-block;
+    margin-bottom: 20px; /* Space below the title */
+}
+
+.clickable-title:hover {
+    text-decoration: underline; /* Underline on hover */
+    color: #0056b3; /* Darker blue on hover */
+}

@@ -111,7 +111,8 @@
 {% endblock %}
 
 {% block content %}
-<h1>Manage Tasks</h1>
+<h1><a href="{% url 'manage_tasks' %}" class="clickable-title" title="Manage Task">Manage Task</a></h1>
+
 
 <div id="message-container">
     {% if messages %}

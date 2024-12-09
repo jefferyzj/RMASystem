@@ -10,7 +10,11 @@ from django.contrib import messages
 from django.http import JsonResponse
 from .forms import CategoryFormSet, StatusFormSet, TaskFormSet, LocationFormSet, StatusTaskFormSet
 from .utilhelpers import PRIORITY_LEVEL_CHOICES
+from django.db import models
 from django.db.models import Count
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET
+from .models import Location
 
 def home_view(request):
     return render(request, 'base.html')
@@ -424,22 +428,80 @@ class ManageLocationsView(View):
     template_name = 'manage_locations.html'
 
     def get(self, request):
-        print("ManageLocationsView GET request")
-        formset = LocationFormSet(queryset=Location.objects.all())
-        print("Rendering manage_locations.html template")
-        return render(request, self.template_name, {'formset': formset})
+        form = LocationForm()
+        racks = Location.objects.values('rack_name').annotate(
+            layers=models.Count('layer_number', distinct=True)
+        ).order_by('rack_name')
+        rack_layers = []
+        for rack in racks:
+            layers = Location.objects.filter(rack_name=rack['rack_name']).values('layer_number').annotate(
+                product_count=models.Count('product', filter=models.Q(product__isnull=False))
+            ).order_by('layer_number')
+            rack_layers.append({
+                'rack_name': rack['rack_name'],
+                'layers': layers
+            })
+        return render(request, self.template_name, {
+            'form': form,
+            'racks': rack_layers
+        })
 
     def post(self, request):
-        print("ManageLocationsView POST request")
-        formset = LocationFormSet(request.POST)
-        if formset.is_valid():
-            formset.save()
-            messages.success(request, 'Locations updated successfully.')
-            print("Locations updated successfully")
-        else:
-            messages.error(request, 'Error updating locations.')
-            print("Error updating locations")
-        return render(request, self.template_name, {'formset': formset})
+        form = LocationForm(request.POST)
+        location_action = request.POST.get('location_action')
+        if location_action == 'add':
+            if form.is_valid():
+                rack_name = form.cleaned_data.get('rack_name')
+                layer_number = form.cleaned_data.get('layer_number')
+                num_spaces_per_layer = form.cleaned_data.get('num_spaces_per_layer') or 60
+
+                if not rack_name or not layer_number:
+                    messages.error(request, "You must specify both a rack name and a layer number when creating locations.")
+                elif Location.objects.filter(rack_name=rack_name, layer_number=layer_number).exists():
+                    messages.error(request, "Locations with the specified rack name and layer already exist.")
+                else:
+                    for space in range(1, num_spaces_per_layer + 1):
+                        Location.objects.create(
+                            rack_name=rack_name,
+                            layer_number=layer_number,
+                            space_number=space
+                        )
+                    messages.success(request, 'Location(s) created successfully.')
+                    return redirect('manage_locations')
+            else:
+                messages.error(request, 'Error creating location(s).')
+        elif location_action == 'delete':
+            if form.is_valid():
+                rack_name = form.cleaned_data.get('remove_rack_name')
+                layer_number = form.cleaned_data.get('remove_layer_number')
+
+                if not rack_name or not layer_number:
+                    messages.error(request, "You must specify both a rack name and a layer number when removing locations.")
+                elif Location.objects.filter(rack_name=rack_name, layer_number=layer_number, product__isnull=False).exists():
+                    messages.error(request, "Cannot remove locations in this layer because some locations store products.")
+                else:
+                    Location.objects.filter(rack_name=rack_name, layer_number=layer_number, product__isnull=True).delete()
+                    messages.success(request, 'Location(s) removed successfully.')
+                    return redirect('manage_locations')
+            else:
+                messages.error(request, 'Error removing location(s).')
+
+        racks = Location.objects.values('rack_name').annotate(
+            layers=models.Count('layer_number', distinct=True)
+        ).order_by('rack_name')
+        rack_layers = []
+        for rack in racks:
+            layers = Location.objects.filter(rack_name=rack['rack_name']).values('layer_number').annotate(
+                product_count=models.Count('product', filter=models.Q(product__isnull=False))
+            ).order_by('layer_number')
+            rack_layers.append({
+                'rack_name': rack['rack_name'],
+                'layers': layers
+            })
+        return render(request, self.template_name, {
+            'form': form,
+            'racks': rack_layers
+        })
    
 def get_predefined_tasks(request):
     """
@@ -473,3 +535,13 @@ def fetch_categories(request):
         data = [{'name': category.name, 'product_count': category.product_count} for category in categories]
         return JsonResponse(data, safe=False)
     return JsonResponse({'error': 'Invalid request'}, status=400)
+
+@require_GET
+def get_layers_for_rack(request):
+    rack_name = request.GET.get('rack_name')
+    if rack_name:
+        layers = Location.objects.filter(rack_name=rack_name).values('layer_number').annotate(
+            product_count=models.Count('product', filter=models.Q(product__isnull=False))
+        ).distinct()
+        return JsonResponse({'layers': list(layers)})
+    return JsonResponse({'layers': []})

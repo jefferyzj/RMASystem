@@ -4,7 +4,26 @@
 
 {% block extra_head %}
 <script>
+    function toggleLocationAction() {
+        const selectedLocationAction = document.querySelector('input[name="location_action"]:checked');
+        if (selectedLocationAction) {
+            document.querySelectorAll('.location-action-section').forEach(section => {
+                section.style.display = 'none';
+            });
+            const activeSection = document.getElementById(`${selectedLocationAction.value}-location-section`);
+            if (activeSection) {
+                activeSection.style.display = 'block';
+                console.log(`Active section: ${activeSection.id}`);
+            }
+        } else {
+            document.getElementById('display-location-section').style.display = 'block';
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
+        // Trigger change event on page load to set initial visibility
+        toggleLocationAction();
+
         // Display messages and handle redirection
         const messageContainer = document.querySelector('.messages');
         if (messageContainer && messageContainer.children.length > 0) {
@@ -19,12 +38,38 @@
                 window.location.href = "{% url 'manage_locations' %}";
             }, 3000);
         }
+
+        // Add event listeners to radio buttons
+        const locationActionRadios = document.querySelectorAll('input[name="location_action"]');
+        locationActionRadios.forEach(radio => {
+            radio.addEventListener('change', toggleLocationAction);
+        });
+
+        // Update layer number choices based on selected rack name
+        const removeRackNameField = document.querySelector('select[name="remove_rack_name"]');
+        const removeLayerNumberField = document.querySelector('select[name="remove_layer_number"]');
+        if (removeRackNameField) {
+            removeRackNameField.addEventListener('change', function() {
+                const rackName = this.value;
+                fetch(`{% url 'get_layers_for_rack' %}?rack_name=${rackName}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        removeLayerNumberField.innerHTML = '';
+                        data.layers.forEach(layer => {
+                            const option = document.createElement('option');
+                            option.value = layer.layer_number;
+                            option.textContent = `Layer ${layer.layer_number} - ${layer.product_count} Products`;
+                            removeLayerNumberField.appendChild(option);
+                        });
+                    });
+            });
+        }
     });
 </script>
 {% endblock %}
 
 {% block content %}
-<h1>Manage Locations</h1>
+<h1><a href="{% url 'manage_locations' %}" class="clickable-title" title="Manage Location">Manage Locations</a></h1>
 
 <div id="message-container">
     {% if messages %}
@@ -38,28 +83,53 @@
     {% endif %}
 </div>
 
-<form method="post">
-    {% csrf_token %}
-    {{ formset.management_form }}
-    <table>
-        {% for form in formset %}
-            <tr>
-                <td><label for="{{ form.action.id_for_label }}">{{ form.action.label }}</label></td>
-                <td>{{ form.action }}</td>
-                <td><label for="{{ form.rack_name.id_for_label }}">{{ form.rack_name.label }}</label></td>
-                <td>{{ form.rack_name }}</td>
-                <td><label for="{{ form.layer_number.id_for_label }}">{{ form.layer_number.label }}</label></td>
-                <td>{{ form.layer_number }}</td>
-                <td><label for="{{ form.num_spaces_per_layer.id_for_label }}">{{ form.num_spaces_per_layer.label }}</label></td>
-                <td>{{ form.num_spaces_per_layer }}</td>
-                <td><label for="{{ form.remove_layer_number.id_for_label }}">{{ form.remove_layer_number.label }}</label></td>
-                <td>{{ form.remove_layer_number }}</td>
-                <td><label for="{{ form.remove_rack_name.id_for_label }}">{{ form.remove_rack_name.label }}</label></td>
-                <td>{{ form.remove_rack_name }}</td>
-                <td>{{ form.DELETE }}</td>
-            </tr>
+<div>
+    <label><input type="radio" name="location_action" value="add" title="Add Location"> Add Location</label>
+    <label><input type="radio" name="location_action" value="delete" title="Delete Location"> Delete Location</label>
+</div>
+
+<div id="display-location-section" class="location-action-section" style="display: block;">
+    <h3>Existing Racks and Layers</h3>
+    <ul>
+        
+        {% for rack in racks %}
+            <li>{{ rack.rack_name }}</li>
+            <ul>
+                {% for layer in rack.layers %}
+                    <li>{{ rack.rack_name }}L{{ layer.layer_number }} -- Storing {{ layer.product_count }} Products</li>
+                {% endfor %}
+            </ul>
         {% endfor %}
-    </table>
-    <button type="submit" title="Save to update locations">Save to update locations</button>
+    </ul>
+</div>
+
+<form method="post" id="add-location-form">
+    {% csrf_token %}
+    <input type="hidden" name="location_action" value="add">
+    <div id="add-location-section" class="location-action-section" style="display: none;">
+        <h3>Add Location</h3>
+        <label for="{{ form.rack_name.id_for_label }}">{{ form.rack_name.label }}</label>
+        {{ form.rack_name }}
+        <label for="{{ form.layer_number.id_for_label }}">{{ form.layer_number.label }}</label>
+        {{ form.layer_number }}
+        <label for="{{ form.num_spaces_per_layer.id_for_label }}">{{ form.num_spaces_per_layer.label }}</label>
+        {{ form.num_spaces_per_layer }}
+        <button type="submit" name="location_action" value="add" title="Save to add location">Save to add location</button>
+    </div>
 </form>
+
+<form method="post" id="delete-location-form">
+    {% csrf_token %}
+    <input type="hidden" name="location_action" value="delete">
+    <div id="delete-location-section" class="location-action-section" style="display: none;">
+        <h3>Delete Location</h3>
+        <label for="{{ form.remove_rack_name.id_for_label }}">{{ form.remove_rack_name.label }}</label>
+        {{ form.remove_rack_name }}
+        <label for="{{ form.remove_layer_number.id_for_label }}">{{ form.remove_layer_number.label }}</label>
+        {{ form.remove_layer_number }}
+        <button type="submit" name="location_action" value="delete" title="Save to delete location">Save to delete location</button>
+    </div>
+</form>
+
+<button onclick="window.location.href='{% url 'feature_manage' %}'" title="Go back to manage other features">Go back to manage other features</button>
 {% endblock %}

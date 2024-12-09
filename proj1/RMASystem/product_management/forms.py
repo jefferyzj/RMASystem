@@ -4,8 +4,9 @@ from crispy_forms.layout import Submit
 from .models import Product, Category, Status, Task, ProductTask, StatusTask, Location, StatusTransition, ProductStatus
 from django.db import transaction
 from .utilhelpers import PRIORITY_LEVEL_CHOICES
-from django.core.validators import RegexValidator
+from django.core.validators import RegexValidator, MinValueValidator
 from django.forms import modelformset_factory
+
 
 class BaseForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
@@ -130,69 +131,33 @@ class ProductTaskForm(BaseForm):
         fields = ['product', 'task', 'result', 'note', 'is_completed', 'is_skipped', 'is_predefined']
 
 
-class LocationForm(BaseForm):
-    action = forms.ChoiceField(choices=[('create', 'Create'), ('remove', 'Remove')], widget=forms.RadioSelect, label="Action")
-    num_spaces_per_layer = forms.IntegerField(required=False, label="Number of Spaces per Layer", initial=50)
-    remove_layer_number = forms.IntegerField(required=False, label="Layer Number to Remove")
+class LocationForm(forms.ModelForm):
+    num_spaces_per_layer = forms.IntegerField(required=False, label="Number of Spaces per Layer", initial=60)
+    remove_layer_number = forms.ChoiceField(required=False, label="Layer Number to Remove")
     remove_rack_name = forms.ModelChoiceField(queryset=Location.objects.values_list('rack_name', flat=True).distinct(), required=False, label="Rack Name to Remove")
 
     class Meta:
         model = Location
-        fields = ['action', 'rack_name', 'layer_number', 'num_spaces_per_layer', 'remove_layer_number', 'remove_rack_name']
+        fields = ['rack_name', 'layer_number', 'num_spaces_per_layer', 'remove_layer_number', 'remove_rack_name']
 
-    def clean(self):
-        cleaned_data = super().clean()
-        action = cleaned_data.get('action')
-        rack_name = cleaned_data.get('rack_name')
-        layer_number = cleaned_data.get('layer_number')
-        remove_layer_number = cleaned_data.get('remove_layer_number')
-        remove_rack_name = cleaned_data.get('remove_rack_name')
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['layer_number'].widget.attrs.update({'min': 1})
+        self.fields['layer_number'].validators.append(MinValueValidator(1))
 
-        if action == 'remove':
-            if remove_layer_number and not rack_name:
-                raise forms.ValidationError("You must specify a rack name when removing a layer.")
-            if remove_layer_number:
-                # Check if there are any locations in this layer that store products
-                if Location.objects.filter(rack_name=rack_name, layer_number=remove_layer_number, product__isnull=False).exists():
-                    raise forms.ValidationError("Cannot remove locations in this layer because some locations store products.")
-            if remove_rack_name:
-                # Check if there are any locations in this rack that store products
-                if Location.objects.filter(rack_name=remove_rack_name, product__isnull=False).exists():
-                    raise forms.ValidationError("Cannot remove locations in this rack because some locations store products.")
-        elif action == 'create':
-            if not rack_name or not layer_number:
-                raise forms.ValidationError("You must specify both a rack name and a layer number when creating locations.")
-            # Check if the rack name and layer already exist
-            if Location.objects.filter(rack_name=rack_name, layer_number=layer_number).exists():
-                raise forms.ValidationError("Locations with the specified rack name and layer already exist.")
-
-        return cleaned_data
-    
-    @transaction.atomic
-    def save(self, commit=True):
-        location = super().save(commit=False)
-        action = self.cleaned_data.get('action')
-        if commit:
-            num_spaces_per_layer = self.cleaned_data.get('num_spaces_per_layer') or 50
-            remove_layer_number = self.cleaned_data.get('remove_layer_number')
-            remove_rack_name = self.cleaned_data.get('remove_rack_name')
-
-            if action == 'remove':
-                if remove_layer_number:
-                    # Remove all locations in the specified layer of the rack
-                    Location.objects.filter(rack_name=location.rack_name, layer_number=remove_layer_number, product__isnull=True).delete()
-                elif remove_rack_name:
-                    # Remove all locations in the specified rack
-                    Location.objects.filter(rack_name=remove_rack_name, product__isnull=True).delete()
-            elif action == 'create':
-                # Create new locations
-                for space in range(1, num_spaces_per_layer + 1):
-                    Location.objects.create(
-                        rack_name=location.rack_name,
-                        layer_number=location.layer_number,
-                        space_number=space
-                    )
-        return location
+        if 'remove_rack_name' in self.data:
+            try:
+                rack_name = self.data.get('remove_rack_name')
+                print(rack_name)
+                self.fields['remove_layer_number'].choices = [
+                    (layer, layer) for layer in Location.objects.filter(rack_name=rack_name).values_list('layer_number', flat=True).distinct()
+                ]
+            except (ValueError, TypeError):
+                pass  # invalid input from the client; ignore and fallback to empty queryset
+        elif self.instance.pk:
+            self.fields['remove_layer_number'].choices = [
+                (layer, layer) for layer in Location.objects.filter(rack_name=self.instance.rack_name).values_list('layer_number', flat=True).distinct()
+            ]
 
 class StatusTransitionForm(forms.ModelForm):
     new_status_name = forms.CharField(max_length=100, required=False, label="Or Create New Status")
