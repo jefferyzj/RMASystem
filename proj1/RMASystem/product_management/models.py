@@ -10,13 +10,13 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 
-class Category(models.Model):
+class Category(TimeStampedModel):
     name = models.CharField(max_length=100)
 
     def __str__(self):
         return self.name
 
-class Location(models.Model):
+class Location(TimeStampedModel):
     rack_name = models.CharField(max_length=100)
     layer_number = models.IntegerField()
     space_number = models.IntegerField(null=True, blank=True)
@@ -34,7 +34,7 @@ class Location(models.Model):
             for space in range(1, num_spaces_per_layer + 1):
                 Location.objects.create(rack_name=rack_name, layer_number=layer, space_number=space)
 
-class Status(TimeStampedModel):
+class Status(TimeStampedModel, SoftDeletableModel):
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True, null=True)
     is_closed = models.BooleanField(default=False)   
@@ -85,7 +85,7 @@ class StatusTransition(TimeStampedModel):
         return transition_dict
 
 
-class StatusTask(OrderedModel):
+class StatusTask(OrderedModel, TimeStampedModel, SoftDeletableModel):
     """
     This model is used to record the tasks linked to a status. 
     Can use predefined tasks with order to indicate if the tasks should be added to product 
@@ -153,7 +153,7 @@ class StatusTask(OrderedModel):
         return choices
 
 
-class Task(TimeStampedModel):
+class Task(TimeStampedModel, SoftDeletableModel):
     task_name = models.CharField(
         max_length=100, 
         help_text="Action to be performed in this task", 
@@ -169,7 +169,7 @@ class Task(TimeStampedModel):
         return f"This Task: Action: {self.task_name} | description: {self.description}."
 
 
-class ProductTask(TimeStampedModel, OrderedModel):
+class ProductTask(TimeStampedModel, OrderedModel, SoftDeletableModel):
     """
     This model is used to record the tasks of a product with order.
     Mark the result and note about the task and if is an active task or not for the product.
@@ -254,7 +254,7 @@ class ProductTask(TimeStampedModel, OrderedModel):
         # Use the built-in `to` method to move the task to the specified position
         product_task.to(position)
 
-class ProductStatus(TimeStampedModel):
+class ProductStatus(TimeStampedModel, SoftDeletableModel):
     """
     The model to link product and its status, and record the time of the status change.
     """
