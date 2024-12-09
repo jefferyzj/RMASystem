@@ -20,6 +20,8 @@
     
     #7 12/6 finish the manage status part, but can still develop its UI, and need to test it.
     #8 12/6 consider to use soft delete for status, task, and some other models. Since we may need to delete status sometimes, but we don't want to loss the data like in productstatus, statusTask, and so on.
+    #9 12/9 finish the manage location part, but need to test it.
+    #10 12/9 almost finish the manage feature part. Need to add some update action to the task and status part.
 """
 Things about feature_manage:
 
@@ -69,4 +71,29 @@ Delete Status:
 
 The user can delete an existing status.
 The deletion should be handled separately from the addition/updating of statuses.
+"""
+
+"""
+Requirements for Manage Location Page
+Page Structure:
+
+The page should have two parts: add location and delete location.
+When the user clicks on manage location, it should navigate to the manage_location page.
+The user should see two radio buttons: add location and delete location.
+The user should see existing racks and the number of products belonging to each rack, including information about all layers of each rack.
+For each rack, it should show how many locations are occupied by a product.
+Add Location:
+
+The user should enter the rack name and layer number.
+Optionally, the user can enter the number of spaces to create multiple locations.
+If only the rack name and layer number are provided, the default number of spaces should be set to 60.
+Create 60 location instances with the product attribute set to null if the number of spaces is not specified.
+Delete Location:
+
+The user should select from the existing rack names.
+The user should select from the layers existing in the selected rack.
+The user can only delete a layer of a rack if all locations on that layer are not storing products.
+Style:
+
+The manage location page should follow the style of the manage tasks page.
 """
