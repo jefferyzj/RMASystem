@@ -1,50 +1,36 @@
 {% extends "base.html" %}
 
-{% block title %}Manage Categories{% endblock %}
+{% block title %}Manage Locations{% endblock %}
 
 {% block extra_head %}
 <script>
-    function toggleCategoryAction() {
-        const selectedCategoryAction = document.querySelector('input[name="category_action"]:checked');
-        if (selectedCategoryAction) {
-            document.querySelectorAll('.category-action-section').forEach(section => {
+    function toggleLocationAction() {
+        const selectedLocationAction = document.querySelector('input[name="location_action"]:checked');
+        if (selectedLocationAction) {
+            document.querySelectorAll('.location-action-section').forEach(section => {
                 section.style.display = 'none';
             });
-            const activeSection = document.getElementById(`${selectedCategoryAction.value}-category-section`);
-            activeSection.style.display = 'block';
-        }
-    }
-
-    function fetchCategories() {
-        fetch("{% url 'fetch_categories' %}", {
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
+            const activeSection = document.getElementById(`${selectedLocationAction.value}-location-section`);
+            if (activeSection) {
+                activeSection.style.display = 'block';
+                console.log(`Active section: ${activeSection.id}`);
             }
-        })
-            .then(response => response.json())
-            .then(data => {
-                const tableBody = document.querySelector('#categories-table tbody');
-                tableBody.innerHTML = '';
-                data.forEach(category => {
-                    const row = document.createElement('tr');
-                    const nameCell = document.createElement('td');
-                    nameCell.textContent = category.name;
-                    const countCell = document.createElement('td');
-                    countCell.textContent = category.product_count;
-                    row.appendChild(nameCell);
-                    row.appendChild(countCell);
-                    tableBody.appendChild(row);
-                });
-            })
-            .catch(error => console.error('Error fetching categories:', error));
+            if (selectedLocationAction.value === 'delete') {
+                const removeRackNameField = document.querySelector('select[name="remove_rack_name"]');
+                if (removeRackNameField && removeRackNameField.options.length > 1) {
+                    removeRackNameField.selectedIndex = 1; // Select the first available rack
+                    const event = new Event('change');
+                    removeRackNameField.dispatchEvent(event); // Trigger change event to load layers
+                }
+            }
+        } else {
+            document.getElementById('display-location-section').style.display = 'block';
+        }
     }
 
     document.addEventListener('DOMContentLoaded', function() {
         // Trigger change event on page load to set initial visibility
-        toggleCategoryAction();
-
-        // Fetch and display categories
-        fetchCategories();
+        toggleLocationAction();
 
         // Display messages and handle redirection
         const messageContainer = document.querySelector('.messages');
@@ -57,22 +43,41 @@
             toast.style.display = 'block';
             setTimeout(() => {
                 toast.style.display = 'none';
-                window.location.href = "{% url 'manage_categories' %}";
+                window.location.href = "{% url 'manage_locations' %}";
             }, 3000);
         }
 
         // Add event listeners to radio buttons
-        const categoryActionRadios = document.querySelectorAll('input[name="category_action"]');
-        categoryActionRadios.forEach(radio => {
-            radio.addEventListener('change', toggleCategoryAction);
+        const locationActionRadios = document.querySelectorAll('input[name="location_action"]');
+        locationActionRadios.forEach(radio => {
+            radio.addEventListener('change', toggleLocationAction);
         });
+
+        // Update layer number choices based on selected rack name
+        const removeRackNameField = document.querySelector('select[name="remove_rack_name"]');
+        const removeLayerNumberField = document.querySelector('select[name="remove_layer_number"]');
+        if (removeRackNameField) {
+            removeRackNameField.addEventListener('change', function() {
+                const rackName = this.value;
+                fetch(`{% url 'get_layers_for_rack' %}?rack_name=${rackName}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        removeLayerNumberField.innerHTML = '';
+                        data.layers.forEach(layer => {
+                            const option = document.createElement('option');
+                            option.value = layer.layer_number;
+                            option.textContent = `Layer ${layer.layer_number} - ${layer.product_count} Products`;
+                            removeLayerNumberField.appendChild(option);
+                        });
+                    });
+            });
+        }
     });
 </script>
 {% endblock %}
 
 {% block content %}
-<h1><a href="{% url 'manage_categories' %}" class="clickable-title" title="Manage Category">Manage Category</a></h1>
-
+<h1><a href="{% url 'manage_locations' %}" class="clickable-title" title="Manage Locations">Manage Locations</a></h1>
 
 <div id="message-container">
     {% if messages %}
@@ -87,48 +92,58 @@
 </div>
 
 <div>
-    <label><input type="radio" name="category_action" value="add" checked title="Add Category"> Add Category</label>
-    <label><input type="radio" name="category_action" value="delete" title="Delete Category"> Delete Category</label>
+    <label><input type="radio" name="location_action" value="add" title="Add Location"> Add Location</label>
+    <label><input type="radio" name="location_action" value="delete" title="Delete Location"> Delete Location</label>
 </div>
 
-<form method="post" id="add-category-form">
+<div id="display-location-section" class="location-action-section" style="display: block;">
+    <h3>Existing Racks and Layers</h3>
+    <ul>
+        {% for rack in racks %}
+            <li>{{ rack.rack_name }}</li>
+            <ul>
+                {% for layer in rack.layers %}
+                    <li>{{ rack.rack_name }}L{{ layer.layer_number }} -- Storing {{ layer.product_count }} Products</li>
+                {% endfor %}
+            </ul>
+        {% endfor %}
+    </ul>
+</div>
+
+<form method="post" id="add-location-form">
     {% csrf_token %}
-    <input type="hidden" name="category_action" value="add">
-    <div id="add-category-section" class="category-action-section">
-        <h3>Add Category</h3>
-        <label for="{{ category_form.name.id_for_label }}">{{ category_form.name.label }}</label>
-        {{ category_form.name }}
-        <button type="submit" title="Save to add category">Save to add category</button>
+    <input type="hidden" name="location_action" value="add">
+    <div id="add-location-section" class="location-action-section" style="display: none;">
+        <h3>Add Location</h3>
+        <label for="{{ form.rack_name.id_for_label }}">{{ form.rack_name.label }}</label>
+        {{ form.rack_name }}
+        <label for="{{ form.layer_number.id_for_label }}">{{ form.layer_number.label }}</label>
+        {{ form.layer_number }}
+        <label for="{{ form.num_spaces_per_layer.id_for_label }}">{{ form.num_spaces_per_layer.label }}</label>
+        {{ form.num_spaces_per_layer }}
+        <button type="submit" name="location_action" value="add" title="Save to add location">Save to add location</button>
     </div>
 </form>
 
-<form method="post" id="delete-category-form">
+<form method="post" id="delete-location-form">
     {% csrf_token %}
-    <input type="hidden" name="category_action" value="delete">
-    <div id="delete-category-section" class="category-action-section" style="display: none;">
-        <h3>Delete Category</h3>
-        {% if categories_exist %}
-            <label for="{{ category_form.category.id_for_label }}">{{ category_form.category.label }}</label>
-            {{ category_form.category }}
-            <button type="submit" title="Save to delete category">Save to delete category</button>
-        {% else %}
-            <p>No categories available for deletion.</p>
-        {% endif %}
+    <input type="hidden" name="location_action" value="delete">
+    <div id="delete-location-section" class="location-action-section" style="display: none;">
+        <h3>Delete Location</h3>
+        <label for="remove_rack_name">Rack Name to Remove</label>
+        <select name="remove_rack_name" id="remove_rack_name">
+            <option value="" selected disabled>Select a rack</option>
+            {% for rack in racks %}
+                <option value="{{ rack.rack_name }}">{{ rack.rack_name }}</option>
+            {% endfor %}
+        </select>
+        <label for="remove_layer_number">Layer Number to Remove</label>
+        <select name="remove_layer_number" id="remove_layer_number">
+            <!-- Options will be populated dynamically based on selected rack -->
+        </select>
+        <button type="submit" name="location_action" value="delete" title="Save to delete location">Save to delete location</button>
     </div>
 </form>
-
-<h2>Existing Categories</h2>
-<table id="categories-table">
-    <thead>
-        <tr>
-            <th>Category Name</th>
-            <th>Number of Products</th>
-        </tr>
-    </thead>
-    <tbody>
-        <!-- Categories will be dynamically populated here -->
-    </tbody>
-</table>
 
 <button onclick="window.location.href='{% url 'feature_manage' %}'" title="Go back to manage other features">Go back to manage other features</button>
 {% endblock %}

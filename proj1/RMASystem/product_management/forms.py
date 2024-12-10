@@ -131,6 +131,10 @@ class ProductTaskForm(BaseForm):
         fields = ['product', 'task', 'result', 'note', 'is_completed', 'is_skipped', 'is_predefined']
 
 
+from django import forms
+from django.core.validators import MinValueValidator
+from .models import Location
+
 class LocationForm(forms.ModelForm):
     num_spaces_per_layer = forms.IntegerField(required=False, label="Number of Spaces per Layer", initial=60)
     remove_layer_number = forms.ChoiceField(required=False, label="Layer Number to Remove")
@@ -148,7 +152,6 @@ class LocationForm(forms.ModelForm):
         if 'remove_rack_name' in self.data:
             try:
                 rack_name = self.data.get('remove_rack_name')
-                print(rack_name)
                 self.fields['remove_layer_number'].choices = [
                     (layer, layer) for layer in Location.objects.filter(rack_name=rack_name).values_list('layer_number', flat=True).distinct()
                 ]

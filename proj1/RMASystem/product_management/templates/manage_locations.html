@@ -69,7 +69,7 @@
 {% endblock %}
 
 {% block content %}
-<h1><a href="{% url 'manage_locations' %}" class="clickable-title" title="Manage Location">Manage Locations</a></h1>
+<h1><a href="{% url 'manage_locations' %}" class="clickable-title" title="Manage Locations">Manage Locations</a></h1>
 
 <div id="message-container">
     {% if messages %}
@@ -91,7 +91,6 @@
 <div id="display-location-section" class="location-action-section" style="display: block;">
     <h3>Existing Racks and Layers</h3>
     <ul>
-        
         {% for rack in racks %}
             <li>{{ rack.rack_name }}</li>
             <ul>
@@ -123,10 +122,16 @@
     <input type="hidden" name="location_action" value="delete">
     <div id="delete-location-section" class="location-action-section" style="display: none;">
         <h3>Delete Location</h3>
-        <label for="{{ form.remove_rack_name.id_for_label }}">{{ form.remove_rack_name.label }}</label>
-        {{ form.remove_rack_name }}
-        <label for="{{ form.remove_layer_number.id_for_label }}">{{ form.remove_layer_number.label }}</label>
-        {{ form.remove_layer_number }}
+        <label for="remove_rack_name">Rack Name to Remove</label>
+        <select name="remove_rack_name" id="remove_rack_name">
+            {% for rack in racks %}
+                <option value="{{ rack.rack_name }}">{{ rack.rack_name }}</option>
+            {% endfor %}
+        </select>
+        <label for="remove_layer_number">Layer Number to Remove</label>
+        <select name="remove_layer_number" id="remove_layer_number">
+            <!-- Options will be populated dynamically based on selected rack -->
+        </select>
         <button type="submit" name="location_action" value="delete" title="Save to delete location">Save to delete location</button>
     </div>
 </form>

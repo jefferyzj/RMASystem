@@ -424,6 +424,7 @@ class ManageTasksView(View):
             'existing_tasks': existing_tasks
         })
 
+
 class ManageLocationsView(View):
     template_name = 'manage_locations.html'
 
@@ -467,24 +468,19 @@ class ManageLocationsView(View):
                             space_number=space
                         )
                     messages.success(request, 'Location(s) created successfully.')
-                    return redirect('manage_locations')
             else:
                 messages.error(request, 'Error creating location(s).')
         elif location_action == 'delete':
-            if form.is_valid():
-                rack_name = form.cleaned_data.get('remove_rack_name')
-                layer_number = form.cleaned_data.get('remove_layer_number')
+            rack_name = request.POST.get('remove_rack_name')
+            layer_number = request.POST.get('remove_layer_number')
 
-                if not rack_name or not layer_number:
-                    messages.error(request, "You must specify both a rack name and a layer number when removing locations.")
-                elif Location.objects.filter(rack_name=rack_name, layer_number=layer_number, product__isnull=False).exists():
-                    messages.error(request, "Cannot remove locations in this layer because some locations store products.")
-                else:
-                    Location.objects.filter(rack_name=rack_name, layer_number=layer_number, product__isnull=True).delete()
-                    messages.success(request, 'Location(s) removed successfully.')
-                    return redirect('manage_locations')
+            if not rack_name or not layer_number:
+                messages.error(request, "You must specify both a rack name and a layer number when removing locations.")
+            elif Location.objects.filter(rack_name=rack_name, layer_number=layer_number, product__isnull=False).exists():
+                messages.error(request, "Cannot remove locations in this layer because some locations store products.")
             else:
-                messages.error(request, 'Error removing location(s).')
+                Location.objects.filter(rack_name=rack_name, layer_number=layer_number, product__isnull=True).delete()
+                messages.success(request, 'Location(s) removed successfully.')
 
         racks = Location.objects.values('rack_name').annotate(
             layers=models.Count('layer_number', distinct=True)
@@ -502,7 +498,8 @@ class ManageLocationsView(View):
             'form': form,
             'racks': rack_layers
         })
-   
+
+@require_GET   
 def get_predefined_tasks(request):
     """
     helper function to fetch predefined tasks that use in manage_tasks.html
@@ -514,6 +511,7 @@ def get_predefined_tasks(request):
         return JsonResponse({'tasks': tasks_list})
     return JsonResponse({'tasks': []})
 
+@require_GET
 def get_order_choices(request):
     """
     helper function to fetch order choices that use in manage_tasks.html
@@ -526,6 +524,7 @@ def get_order_choices(request):
         return JsonResponse({'choices': choices})
     return JsonResponse({'choices': []})
 
+@require_GET
 def fetch_categories(request):
     """
     helper function to fetch categories that use in manage_categories.html
