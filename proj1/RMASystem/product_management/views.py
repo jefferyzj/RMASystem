@@ -2,7 +2,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.views.generic import View, ListView, UpdateView, CreateView, FormView
 from django.urls import reverse_lazy
 from .models import Product, ProductTask, Category, Task, Location, Status, StatusTransition, ProductStatus, StatusTask
-from .forms import ProductForm, ProductTaskForm, TaskForm, LocationForm, StatusTransitionForm, CheckinOrUpdateForm, CategoryForm, StatusTaskForm, StatusForm
+from .forms import ProductForm, ProductTaskForm, TaskForm, LocationForm, StatusTransitionForm, CategoryForm, StatusTaskForm, StatusForm
 from django.core.exceptions import ValidationError
 from django_filters.views import FilterView
 from .filters import ProductFilter
@@ -15,6 +15,7 @@ from django.db.models import Count
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from .models import Location
+from .forms import CheckinNewForm, UpdateLocationForm
 
 def home_view(request):
     return render(request, 'base.html')
@@ -145,81 +146,6 @@ class StatusTransitionView(FormView):
 
         return redirect('product_detail', pk=self.product.pk)
 
-class CheckinOrUpdateView(FormView):
-    template_name = 'checkin_or_update.html'
-    form_class = CheckinOrUpdateForm
-
-    def form_valid(self, form):
-        action = form.cleaned_data['action']
-        if action == 'checkin_new':
-            # Handle check-in for new product
-            category = form.cleaned_data['category']
-            sn = form.cleaned_data['sn']
-            short_12V_48V = form.cleaned_data['short_12V_48V']
-            priority_level = form.cleaned_data['priority_level']
-            # Check if the SN already exists
-            if Product.objects.filter(SN=sn).exists():
-                form.add_error('sn', 'A product with this SN already exists.')
-                return self.form_invalid(form)
-            # Create the new product
-            product = Product.objects.create(SN=sn, category=category, short_12V_48V=short_12V_48V, priority_level=priority_level)
-            messages.success(self.request, f'Product successfully created: Category: {product.category.name}, SN: {product.SN}, Short 12V/48V: {product.short_12V_48V}, Priority Level: {product.get_priority_level_display()}.')
-            return self.render_to_response(self.get_context_data(form=form))
-        elif action == 'checkin_location':
-            # Handle check-in/update location
-            sn = form.cleaned_data['sn']
-            rack_name = form.cleaned_data['rack_name']
-            layer_number = form.cleaned_data['layer_number']
-            space_number = form.cleaned_data['space_number']
-            # Check if the SN exists
-            try:
-                product = Product.objects.get(SN=sn)
-            except Product.DoesNotExist:
-                form.add_error('sn', 'Check-in location action failed. Please check-in the product first.')
-                return self.form_invalid(form)
-            # Ensure the new location is an existing but empty location
-            try:
-                location = Location.objects.get(rack_name=rack_name, layer_number=layer_number, space_number=space_number, product__isnull=True)
-            except Location.DoesNotExist:
-                form.add_error('rack_name', 'The selected location is not available.')
-                return self.form_invalid(form)
-            product.location = location
-            product.save()
-            messages.success(self.request, f'Product location updated: SN: {product.SN}, Rack: {location.rack_name}, Layer: {location.layer_number}, Space: {location.space_number or "N/A"}.')
-            return self.render_to_response(self.get_context_data(form=form))
-        # Handle other actions later
-        return super().form_valid(form)
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['racks'] = Location.objects.values_list('rack_name', flat=True).distinct()
-        return context
-
-    def get_layers(self, rack_name):
-        layers = Location.objects.filter(rack_name=rack_name, product__isnull=True).values_list('layer_number', flat=True).distinct()
-        return layers
-
-    def get_spaces(self, rack_name, layer_number):
-        spaces = Location.objects.filter(rack_name=rack_name, layer_number=layer_number, product__isnull=True).values_list('space_number', flat=True).distinct()
-        return spaces
-
-    def get_product_location(self, request):
-        sn = request.GET.get('sn')
-        try:
-            product = Product.objects.get(SN=sn)
-            location = product.location
-            current_status = product.current_status
-            data = {
-                'location': {
-                    'rack_name': location.rack_name if location else None,
-                    'layer_number': location.layer_number if location else None,
-                    'space_number': location.space_number if location else None,
-                },
-                'current_status': current_status.name if current_status else 'No status'
-            }
-        except Product.DoesNotExist:
-            data = {'error': 'Product not found'}
-        return JsonResponse(data)
 
 class FeatureManageView(View):
     template_name = 'feature_manage.html'
@@ -499,6 +425,80 @@ class ManageLocationsView(View):
             'racks': rack_layers
         })
 
+class CheckinView(View):
+    template_name = 'checkin.html'
+
+    def get(self, request):
+        return render(request, self.template_name)
+
+
+class CheckinNewView(View):
+    template_name = 'checkin_new.html'
+
+    def get(self, request):
+        form = CheckinNewForm()
+        racks = Location.objects.values('rack_name').distinct()
+        return render(request, self.template_name, {'form': form, 'racks': racks})
+
+    def post(self, request):
+        form = CheckinNewForm(request.POST)
+        if form.is_valid():
+            category = form.cleaned_data.get('category')
+            sn = form.cleaned_data.get('sn')
+            short_12V_48V = form.cleaned_data.get('short_12V_48V')
+            priority_level = form.cleaned_data.get('priority_level')
+            rack_name = form.cleaned_data.get('rack_name')
+            layer_number = form.cleaned_data.get('layer_number')
+            space_number = form.cleaned_data.get('space_number')
+
+            product, created = Product.objects.get_or_create(sn=sn, defaults={
+                'category': category,
+                'short_12V_48V': short_12V_48V,
+                'priority_level': priority_level,
+                'location': Location.objects.get(rack_name=rack_name, layer_number=layer_number, space_number=space_number)
+            })
+
+            if not created:
+                product.location = Location.objects.get(rack_name=rack_name, layer_number=layer_number, space_number=space_number)
+                product.save()
+
+            messages.success(request, 'Product checked in successfully.')
+            return redirect('checkin_new')
+        else:
+            messages.error(request, 'Error checking in product.')
+        racks = Location.objects.values('rack_name').distinct()
+        return render(request, self.template_name, {'form': form, 'racks': racks})
+
+class UpdateLocationView(View):
+    template_name = 'update_location.html'
+
+    def get(self, request):
+        form = UpdateLocationForm()
+        racks = Location.objects.values('rack_name').distinct()
+        return render(request, self.template_name, {'form': form, 'racks': racks})
+
+    def post(self, request):
+        form = UpdateLocationForm(request.POST)
+        if form.is_valid():
+            sn = form.cleaned_data.get('sn')
+            rack_name = form.cleaned_data.get('rack_name')
+            layer_number = form.cleaned_data.get('layer_number')
+            space_number = form.cleaned_data.get('space_number')
+
+            try:
+                product = Product.objects.get(sn=sn)
+                product.location = Location.objects.get(rack_name=rack_name, layer_number=layer_number, space_number=space_number)
+                product.save()
+                messages.success(request, 'Product location updated successfully.')
+            except Product.DoesNotExist:
+                messages.error(request, 'Product with the specified serial number does not exist.')
+
+            return redirect('update_location')
+        else:
+            messages.error(request, 'Error updating product location.')
+        racks = Location.objects.values('rack_name').distinct()
+        return render(request, self.template_name, {'form': form, 'racks': racks})
+
 @require_GET   
 def get_predefined_tasks(request):
     """
@@ -544,3 +544,11 @@ def get_layers_for_rack(request):
         ).distinct()
         return JsonResponse({'layers': list(layers)})
     return JsonResponse({'layers': []})
+@require_GET
+def get_spaces_for_layer(request):
+    rack_name = request.GET.get('rack_name')
+    layer_number = request.GET.get('layer_number')
+    if rack_name and layer_number:
+        spaces = Location.objects.filter(rack_name=rack_name, layer_number=layer_number).values_list('space_number', flat=True)
+        return JsonResponse({'spaces': list(spaces)})
+    return JsonResponse({'spaces': []})

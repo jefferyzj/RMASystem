@@ -13,7 +13,14 @@
             const activeSection = document.getElementById(`${selectedLocationAction.value}-location-section`);
             if (activeSection) {
                 activeSection.style.display = 'block';
-                console.log(`Active section: ${activeSection.id}`);
+            }
+            if (selectedLocationAction.value === 'delete') {
+                const removeRackNameField = document.querySelector('select[name="remove_rack_name"]');
+                const removeLayerNumberField = document.querySelector('select[name="remove_layer_number"]');
+                if (removeRackNameField) {
+                    removeRackNameField.selectedIndex = 0; // Set to blank initially
+                    removeLayerNumberField.innerHTML = ''; // Clear layer options
+                }
             }
         } else {
             document.getElementById('display-location-section').style.display = 'block';
@@ -124,6 +131,7 @@
         <h3>Delete Location</h3>
         <label for="remove_rack_name">Rack Name to Remove</label>
         <select name="remove_rack_name" id="remove_rack_name">
+            <option value="" selected disabled>Select a rack</option>
             {% for rack in racks %}
                 <option value="{{ rack.rack_name }}">{{ rack.rack_name }}</option>
             {% endfor %}

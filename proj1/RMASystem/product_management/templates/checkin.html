@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Check-in{% endblock %}
+
+{% block extra_head %}
+<script>
+    function toggleCheckinAction() {
+        const selectedCheckinAction = document.querySelector('input[name="checkin_action"]:checked');
+        if (selectedCheckinAction) {
+            window.location.href = selectedCheckinAction.value;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const checkinActionRadios = document.querySelectorAll('input[name="checkin_action"]');
+        checkinActionRadios.forEach(radio => {
+            radio.addEventListener('change', toggleCheckinAction);
+        });
+    });
+</script>
+{% endblock %}
+
+{% block content %}
+<h1>Check-in</h1>
+
+<div>
+    <label><input type="radio" name="checkin_action" value="{% url 'checkin_new' %}" title="Check-in For New"> Check-in For New</label>
+    <label><input type="radio" name="checkin_action" value="{% url 'update_location' %}" title="Update Location"> Update Location</label>
+</div>
+{% endblock %}

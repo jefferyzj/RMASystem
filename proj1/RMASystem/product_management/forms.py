@@ -315,33 +315,54 @@ class ProductForm(BaseForm):
         return product
     
 
-class CheckinOrUpdateForm(forms.Form):
-    ACTION_CHOICES = [
-        ('checkin_new', 'Check-in For New'),
-        ('checkin_location', 'Check-in/Update Location'),
-    ]
-
-    action = forms.ChoiceField(choices=ACTION_CHOICES, widget=forms.RadioSelect)
-    category = forms.ModelChoiceField(queryset=Category.objects.all(), required=False)
-    sn = forms.CharField(max_length=13, required=False, validators=[RegexValidator(regex=r'^\d{13}$', message='SN must be exactly 13 digits', code='invalid_sn')])
-    short_12V_48V = forms.ChoiceField(choices=[('P', 'Pass'), ('F12', 'Fail on 12V'), ('F48', 'Fail on 48V')], required=False, initial='P')
-    priority_level = forms.ChoiceField(choices=PRIORITY_LEVEL_CHOICES, required=False, initial='Normal')
-    rack_name = forms.ChoiceField(choices=[], required=False, label="Rack")
-    layer_number = forms.ChoiceField(choices=[], required=False, label="Layer")
-    space_number = forms.ChoiceField(choices=[], required=False, label="Space")
+class CheckinNewForm(forms.Form):
+    category = forms.ModelChoiceField(queryset=Category.objects.all(), required=True, label="Category")
+    sn = forms.CharField(max_length=13, required=True, validators=[RegexValidator(regex=r'^\d{13}$', message='SN must be exactly 13 digits', code='invalid_sn')], label="Serial Number")
+    short_12V_48V = forms.ChoiceField(choices=[('P', 'Pass'), ('F12', 'Fail on 12V'), ('F48', 'Fail on 48V')], required=True, initial='P', label="Short 12V/48V")
+    priority_level = forms.ChoiceField(choices=PRIORITY_LEVEL_CHOICES, required=True, initial='Normal', label="Priority Level")
+    rack_name = forms.ChoiceField(choices=[], required=True, label="Rack")
+    layer_number = forms.ChoiceField(choices=[], required=True, label="Layer")
+    space_number = forms.ChoiceField(choices=[], required=True, label="Space")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.helper = FormHelper()
-        self.helper.form_method = 'post'
-        self.helper.add_input(Submit('submit', 'Submit'))
-        self.fields['category'].widget.attrs.update({'class': 'form-control'})
-        self.fields['sn'].widget.attrs.update({'class': 'form-control'})
-        self.fields['short_12V_48V'].widget.attrs.update({'class': 'form-control'})
-        self.fields['priority_level'].widget.attrs.update({'class': 'form-control'})
-        self.fields['rack_name'].widget.attrs.update({'class': 'form-control'})
-        self.fields['layer_number'].widget.attrs.update({'class': 'form-control'})
-        self.fields['space_number'].widget.attrs.update({'class': 'form-control'})
+        self.fields['rack_name'].choices = [(rack['rack_name'], rack['rack_name']) for rack in Location.objects.values('rack_name').distinct()]
+
+        if 'rack_name' in self.data:
+            try:
+                rack_name = self.data.get('rack_name')
+                self.fields['layer_number'].choices = [(layer, layer) for layer in Location.objects.filter(rack_name=rack_name).values_list('layer_number', flat=True).distinct()]
+                if 'layer_number' in self.data:
+                    layer_number = self.data.get('layer_number')
+                    self.fields['space_number'].choices = [(space, space) for space in Location.objects.filter(rack_name=rack_name, layer_number=layer_number).values_list('space_number', flat=True)]
+            except (ValueError, TypeError):
+                pass
+        else:
+            self.fields['layer_number'].choices = []
+            self.fields['space_number'].choices = []
+
+class UpdateLocationForm(forms.Form):
+    sn = forms.CharField(max_length=13, required=True, validators=[RegexValidator(regex=r'^\d{13}$', message='SN must be exactly 13 digits', code='invalid_sn')], label="Serial Number")
+    rack_name = forms.ChoiceField(choices=[], required=True, label="Rack")
+    layer_number = forms.ChoiceField(choices=[], required=True, label="Layer")
+    space_number = forms.ChoiceField(choices=[], required=True, label="Space")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['rack_name'].choices = [(rack['rack_name'], rack['rack_name']) for rack in Location.objects.values('rack_name').distinct()]
+
+        if 'rack_name' in self.data:
+            try:
+                rack_name = self.data.get('rack_name')
+                self.fields['layer_number'].choices = [(layer, layer) for layer in Location.objects.filter(rack_name=rack_name).values_list('layer_number', flat=True).distinct()]
+                if 'layer_number' in self.data:
+                    layer_number = self.data.get('layer_number')
+                    self.fields['space_number'].choices = [(space, space) for space in Location.objects.filter(rack_name=rack_name, layer_number=layer_number).values_list('space_number', flat=True)]
+            except (ValueError, TypeError):
+                pass
+        else:
+            self.fields['layer_number'].choices = []
+            self.fields['space_number'].choices = []
 
 
 # Formsets for featureManageView
