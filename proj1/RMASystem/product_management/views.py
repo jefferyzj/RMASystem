@@ -81,7 +81,7 @@ class ProductStatusTaskEditView(UpdateView):
 class ProductTaskView(View):
     def get(self, request, sn):
         product = get_object_or_404(Product, SN=sn)
-        ongoing_task = ProductTask.objects.filter(product=product, is_completed=False).first()
+        ongoing_task = ProductTask.objects.filter(product=product, is_completed=False, is_removed = False).first()
         form = ProductTaskForm(instance=ongoing_task)
         return render(request, 'product_task.html', {'form': form, 'product': product, 'ongoing_task': ongoing_task})
 
@@ -202,7 +202,7 @@ class ManageStatusesView(View):
         print("ManageStatusesView GET request")
         formset = StatusFormSet(queryset=Status.objects.none())  # Only include empty forms for adding
         transitions = StatusTransition.get_all_transitions_by_status()
-        statuses = Status.objects.all()
+        statuses = Status.objects.filter(is_removed=False)
         print("Rendering manage_statuses.html template")
         return render(request, self.template_name, {
             'formset': formset,
@@ -226,10 +226,10 @@ class ManageStatusesView(View):
         elif status_action == 'delete':
             status_id = request.POST.get('status_id')
             status = get_object_or_404(Status, pk=status_id)
-            if ProductStatus.objects.filter(status=status).exists():
+            if ProductStatus.objects.filter(status=status, is_removed=False).exists():
                 messages.error(request, 'Cannot delete status with associated products.')
                 print("Cannot delete status with associated products")
-            elif StatusTask.objects.filter(status=status).exists():
+            elif StatusTask.objects.filter(status=status, is_removed=False).exists():
                 messages.error(request, 'Cannot delete status with associated tasks.')
                 print("Cannot delete status with associated tasks")
             else:
@@ -239,14 +239,56 @@ class ManageStatusesView(View):
                 status.delete()
                 messages.success(request, 'Status deleted successfully.')
                 print("Status deleted successfully")
-        
+
         formset = StatusFormSet(queryset=Status.objects.none())  # Only include empty forms for adding
         transitions = StatusTransition.get_all_transitions_by_status()
-        statuses = Status.objects.all()
+        statuses = Status.objects.filter(is_removed=False)
         return render(request, self.template_name, {
             'formset': formset,
             'statuses': statuses,
             'transitions': transitions
+        })
+
+class ViewStatusView(View):
+    template_name = 'view_status.html'
+
+    def get(self, request):
+        view_status_form = StatusForm()
+        statuses = Status.objects.filter(is_removed=False)
+        return render(request, self.template_name, {
+            'view_status_form': view_status_form,
+            'statuses': statuses
+        })
+
+    def post(self, request):
+        status_id = request.POST.get('status')
+        if not status_id:
+            messages.error(request, 'Please select a status.')
+            return redirect('view_status')
+
+        status = Status.objects.get(pk=status_id)
+        if 'save_changes' in request.POST:
+            view_status_form = StatusForm(request.POST, instance=status)
+            if view_status_form.is_valid():
+                status = view_status_form.save(commit=False)
+                status.save()
+                view_status_form.save()
+                messages.success(request, 'Status updated successfully.')
+            else:
+                for error in view_status_form.errors.values():
+                    messages.error(request, error)
+                print(view_status_form.errors)
+        else:
+            view_status_form = StatusForm(instance=status)
+
+        tasks = status.get_tasks()
+        possible_next_statuses = status.get_possible_next_statuses()
+        return render(request, self.template_name, {
+            'view_status_form': view_status_form,
+            'statuses': Status.objects.filter(is_removed=False),
+            'viewed_status': status,
+            'tasks': tasks,
+            'possible_next_statuses': possible_next_statuses,
         })
 
 class ManageTasksView(View):
@@ -315,20 +357,22 @@ class ManageTasksView(View):
                     # Try to retrieve as StatusTask first
                     status_task = StatusTask.objects.get(pk=selected_task_pk)
                     task = status_task.task
-                    product_count = ProductTask.objects.filter(task=task).count()
+                    product_count = ProductTask.objects.filter(task=task, is_removed = False).count()
                     if product_count > 0:
                         messages.error(request, 'Cannot delete task with associated products.')
                         print("Cannot delete task with associated products")
                     else:
                         status_task.delete()
+                        print(task)
                         task.delete()
+                        print(f"task {task}deleted successfully")
                         messages.success(request, 'StatusTask and associated Task deleted successfully.')
                         print("StatusTask and associated Task deleted successfully")
                 except StatusTask.DoesNotExist:
                     # If not a StatusTask, try to retrieve as Task
                     try:
                         task = Task.objects.get(pk=selected_task_pk)
-                        product_count = ProductTask.objects.filter(task=task).count()
+                        product_count = ProductTask.objects.filter(task=task, is_removed = False).count()
                         if product_count > 0:
                             messages.error(request, 'Cannot delete task with associated products.')
                             print("Cannot delete task with associated products")
@@ -506,7 +550,7 @@ def get_predefined_tasks(request):
     """
     status_id = request.GET.get('status_id')
     if status_id:
-        tasks = StatusTask.objects.filter(status_id=status_id, is_predefined=True).values('task__task_name', 'order')
+        tasks = StatusTask.objects.filter(status_id=status_id, is_predefined=True, is_removed = False).values('task__task_name', 'order')
         tasks_list = list(tasks)
         return JsonResponse({'tasks': tasks_list})
     return JsonResponse({'tasks': []})
@@ -518,7 +562,7 @@ def get_order_choices(request):
     """
     status_id = request.GET.get('status_id')
     if status_id:
-        predefined_tasks = StatusTask.objects.filter(status_id=status_id, is_predefined=True).order_by('order')
+        predefined_tasks = StatusTask.objects.filter(status_id=status_id, is_predefined=True, is_removed = False).order_by('order')
         max_order = predefined_tasks.count() + 1
         choices = [{'value': i, 'display': i} for i in range(1, max_order + 1)]
         return JsonResponse({'choices': choices})

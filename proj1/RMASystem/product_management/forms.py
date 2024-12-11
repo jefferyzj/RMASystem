@@ -6,6 +6,7 @@ from django.db import transaction
 from .utilhelpers import PRIORITY_LEVEL_CHOICES
 from django.core.validators import RegexValidator, MinValueValidator
 from django.forms import modelformset_factory
+from django.core.exceptions import ValidationError
 
 
 class BaseForm(forms.ModelForm):
@@ -37,17 +38,31 @@ class CategoryForm(BaseForm):
             raise forms.ValidationError(f'A category with the name "{name}" already exists.')
         return name
 
-class StatusForm(BaseForm):
+class StatusForm(forms.ModelForm):
     possible_next_statuses = forms.ModelMultipleChoiceField(
-        queryset=Status.objects.all(),
+        queryset=Status.objects.none(),
         required=False,
         widget=forms.CheckboxSelectMultiple,
-        label="Possible Next Statuses",
+        label="Possible Next Statuses"
     )
 
     class Meta:
         model = Status
         fields = ['name', 'description', 'is_closed', 'possible_next_statuses']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.fields['possible_next_statuses'].queryset = Status.objects.filter(is_removed=False).exclude(pk=self.instance.pk)
+        if self.instance.pk:
+            self.fields['possible_next_statuses'].initial = self.instance.get_possible_next_statuses()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        possible_next_statuses = cleaned_data.get('possible_next_statuses')
+        if self.instance.is_closed and possible_next_statuses:
+            raise ValidationError(f"Cannot create a transition from a closed status: {self.instance.name}")
+        return cleaned_data
 
     def save(self, commit=True):
         status = super().save(commit=False)
@@ -55,10 +70,11 @@ class StatusForm(BaseForm):
             status.save()
             self.save_m2m()
             possible_next_statuses = self.cleaned_data.get('possible_next_statuses')
+            print(f'possible_next_statuses: {possible_next_statuses}')
             if possible_next_statuses:
                 for next_status in possible_next_statuses:
                     StatusTransition.objects.get_or_create(from_status=status, to_status=next_status)
-                    print("StatusTransition created")
+                    print(f'created transition from {status.name} to {next_status.name}')
         return status
 
 class TaskForm(BaseForm):
@@ -93,12 +109,12 @@ class StatusTaskForm(forms.ModelForm):
         if 'status' in self.data:
             try:
                 status_id = int(self.data.get('status'))
-                predefined_tasks = StatusTask.objects.filter(status_id=status_id, is_predefined=True).order_by('order')
+                predefined_tasks = StatusTask.objects.filter(status_id=status_id, is_predefined=True, is_removed = False).order_by('order')
                 self.fields['order'].choices = [(i, i) for i in range(1, predefined_tasks.count() + 2)]
             except (ValueError, TypeError):
                 pass  # invalid input from the client; ignore and fallback to empty queryset
         elif self.instance.pk:
-            predefined_tasks = StatusTask.objects.filter(status=self.instance.status, is_predefined=True).order_by('order')
+            predefined_tasks = StatusTask.objects.filter(status=self.instance.status, is_predefined=True,is_removed = False).order_by('order')
             self.fields['order'].choices = [(i, i) for i in range(1, predefined_tasks.count() + 2)]
 
         # Customize the choices for existing tasks to include status and predefined information
@@ -253,7 +269,7 @@ class ProductForm(BaseForm):
 
         # Handle new status creation
         if next_status_enter:
-            if Status.objects.filter(name=next_status_enter).exists():
+            if Status.objects.filter(name=next_status_enter, is_removed = False).exists():
                 raise forms.ValidationError(f"Status with name '{next_status_enter}' already exists.")
             new_status, created = Status.objects.get_or_create(name=next_status_enter)
             # in this case, we also set the selected status to the new status, and operate it on save() method
@@ -296,7 +312,7 @@ class ProductForm(BaseForm):
             # Handle tasks assignment
             if tasks or new_task_name:
                 # Clear existing tasks
-                ProductTask.objects.filter(product=product).delete()
+                ProductTask.objects.filter(product=product, is_removed = False).delete()
 
                 # Assign new tasks
                 if tasks:

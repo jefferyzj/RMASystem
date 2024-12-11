@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}View Status{% endblock %}
+
+{% block extra_head %}
+<style>
+    .status-action-section {
+        margin-bottom: 20px; /* Adjust the value as needed */
+    }
+</style>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const statusSelect = document.getElementById('status');
+        statusSelect.addEventListener('change', function() {
+            this.form.submit();
+        });
+
+        // Display messages and handle redirection
+        const messageContainer = document.querySelector('.messages');
+        if (messageContainer && messageContainer.children.length > 0) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.classList.add(messageContainer.children[0].classList.contains('alert-success') ? 'toast-success' : 'toast-error');
+            toast.innerHTML = messageContainer.children[0].innerHTML;
+            document.body.appendChild(toast);
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+                window.location.href = "{% url 'manage_statuses' %}";
+            }, 3000);
+        }
+    });
+</script>
+{% endblock %}
+
+{% block content %}
+<h1>View Status</h1>
+
+<div id="message-container">
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+        <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<div class="status-action-section">
+    <label><input type="radio" name="status_action" value="manage" onclick="window.location.href='{% url 'manage_statuses' %}'" title="Go back to add/delete status"> Go back to add/delete status</label>
+</div>
+
+<form method="post" id="view-status-form">
+    {% csrf_token %}
+    <label for="status">Select Status</label>
+    <select name="status" id="status">
+        <option value="" selected disabled>Select a status</option>
+        {% for status in statuses %}
+            <option value="{{ status.pk }}" {% if viewed_status and viewed_status.pk == status.pk %}selected{% endif %}>{{ status.name }}</option>
+        {% endfor %}
+    </select>
+</form>
+
+{% if viewed_status %}
+<form method="post" id="edit-status-form">
+    {% csrf_token %}
+    <input type="hidden" name="status" value="{{ viewed_status.pk }}">
+    <input type="hidden" name="save_changes" value="true">
+    <input type="hidden" name="name" value="{{ viewed_status.name }}">
+    <div id="status-info-section">
+        <h3>Status Information</h3>
+        <p><strong>Name:</strong> {{ viewed_status.name }}</p>
+        <p><strong>Description:</strong> <textarea name="description">{{ viewed_status.description }}</textarea></p>
+        <p><strong>Is Closed:</strong> <input type="checkbox" name="is_closed" {% if viewed_status.is_closed %}checked{% endif %}></p>
+        <p><strong>Product Count:</strong> {{ viewed_status.get_product_count }}</p>
+        <p><strong>Tasks:</strong></p>
+        <ul>
+            {% for task in tasks %}
+            <li>{{ task.task.task_name }} - Predefined: {{ task.is_predefined }}</li>
+            {% endfor %}
+        </ul>
+        <p><strong>Possible Next Statuses:</strong></p>
+        {{ view_status_form.possible_next_statuses }}
+        <button type="submit" title="Save changes">Save changes</button>
+    </div>
+</form>
+{% endif %}
+
+<button onclick="window.location.href='{% url 'manage_statuses' %}'" title="Go back to Manage Statuses">Go back to Manage Statuses</button>
+{% endblock %}

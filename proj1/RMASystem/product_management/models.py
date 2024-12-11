@@ -47,14 +47,18 @@ class Status(TimeStampedModel, SoftDeletableModel):
         return Product.objects.filter(current_status=self).count()
     
     def get_task_count(self):
-        return StatusTask.objects.filter(status=self).count()
+        return StatusTask.objects.filter(status=self,is_removed = False,).count()
     
     def get_possible_next_statuses(self):
         transitions = StatusTransition.objects.filter(from_status=self).select_related('to_status').order_by('created')
         return [transition.to_status for transition in transitions]
     @classmethod
     def get_existing_statuses(cls):
-        return cls.objects.all()
+        return cls.objects.filter(is_removed = False).order_by('name')
+    
+    def get_tasks(self):
+        return StatusTask.objects.filter(status=self, is_removed=False).select_related('task').order_by('order')
+    
 
 class StatusTransition(TimeStampedModel):
     from_status = models.ForeignKey(Status, related_name='transitions_from', on_delete=models.CASCADE)
@@ -63,15 +67,9 @@ class StatusTransition(TimeStampedModel):
     def __str__(self):
         return f'{self.from_status} -> {self.to_status}'
     
-    @transaction.atomic
-    def save(self, *args, **kwargs):
-        if self.from_status.is_closed:
-            raise ValidationError(f"Cannot create a transition from a closed status: {self.from_status.name}")
-        super().save(*args, **kwargs)
-    
     @classmethod
     def get_all_transitions_by_status(cls):
-        statuses = Status.objects.all().order_by('name')
+        statuses = Status.get_existing_statuses()
         transition_dict = {}
         for status in statuses:
             if status.is_closed:
@@ -108,26 +106,20 @@ class StatusTask(OrderedModel, TimeStampedModel, SoftDeletableModel):
     @transaction.atomic
     def save(self, *args, **kwargs):
         # Seems that can handle the add task case and update task case.
-        print(f"Before all save: {self.order}")
         order_stored  = self.order
         super().save(*args, **kwargs)
-        print(f"stored order: {order_stored}")
-        print(f"after fully save: {self.order}")
+
 
         if not self.is_predefined:
             # Assign to the tail of all tasks
             # since we saved before, the count here already includes the current task
-            self.order = StatusTask.objects.filter(status=self.status).count()
-            print(f"self.order in not predefined: {self.order}")
+            self.order = StatusTask.objects.filter(status=self.status,is_removed = False).count()
         else:
             self.to(order_stored)
-        print(f"Before save: {self.order}")
 
         super().save(update_fields=['order'])
 
-        print(f"After save: {self.order}")
         self.refresh_from_db()  # Refresh the instance to get the correct order value set by OrderedModel
-        print(f"Final order: {self.order}")
         
     def __str__(self):
         return f'- The task {self.task.task_name} under - status {self.status.name} - with the order {self.order}'
@@ -138,15 +130,15 @@ class StatusTask(OrderedModel, TimeStampedModel, SoftDeletableModel):
         Helper function to get the choices for the existing tasks dropdown
         """
         choices = []
-        status_tasks = cls.objects.all()
+        status_tasks = cls.objects.filter(is_removed = False).select_related('task', 'status').order_by('status__name', 'order')
         for status_task in status_tasks:
-            product_count = ProductTask.objects.filter(task=status_task.task).count()
+            product_count = ProductTask.objects.filter(task=status_task.task, is_removed = False).count()
             description = f" - Description: {status_task.task.description}" if show_desc else ""
             label = f"{status_task.task.task_name} - Status: {status_task.status.name} (Predefined: {status_task.is_predefined}) - Order: {status_task.order} - Products: {product_count}{description}"
             choices.append((status_task.pk, label))
-        tasks_without_status = Task.objects.filter(task_statuses__isnull=True)
+        tasks_without_status = Task.objects.filter(task_statuses__isnull=True, is_removed = False)
         for task in tasks_without_status:
-            product_count = ProductTask.objects.filter(task=task).count()
+            product_count = ProductTask.objects.filter(task=task, is_removed = False).count()
             description = f" - Description: {task.description}" if show_desc else ""
             label = f"{task.task_name} (No status mapping) - Products: {product_count}{description}"
             choices.append((task.pk, label))
@@ -166,7 +158,7 @@ class Task(TimeStampedModel, SoftDeletableModel):
     )
 
     def __str__(self):
-        return f"This Task: Action: {self.task_name} | description: {self.description}."
+        return f"This Task: Name: {self.task_name} | description: {self.description}."
 
 
 class ProductTask(TimeStampedModel, OrderedModel, SoftDeletableModel):
@@ -217,7 +209,7 @@ class ProductTask(TimeStampedModel, OrderedModel, SoftDeletableModel):
         """
         #let the first task of the product have the order 1
         if self._state.adding:
-            max_order = self.__class__.objects.filter(product=self.product).aggregate(models.Max('order'))['order__max']
+            max_order = self.__class__.objects.filter(product=self.product, is_removed = False).aggregate(models.Max('order'))['order__max']
             self.order = (max_order or 0) + 1
 
         if self.is_completed and self.is_skipped:
@@ -271,7 +263,8 @@ class ProductStatus(TimeStampedModel, SoftDeletableModel):
     def get_product_status_result(self):
         product_tasks = ProductTask.objects.filter(
             product=self.product, 
-            task__statustask__status=self.status
+            task__statustask__status=self.status,
+            is_removed = False
             ).select_related('task'
             ).order_by('task__statustask__created')
 
@@ -284,7 +277,7 @@ class ProductStatus(TimeStampedModel, SoftDeletableModel):
             result += ' | '
         return result
 
-class Product(TimeStampedModel, SoftDeletableModel):
+class Product(TimeStampedModel):
     """
     product model
     """
@@ -352,6 +345,7 @@ class Product(TimeStampedModel, SoftDeletableModel):
     
     def is_allowed_change_status(self, previous_status):
         active_tasks = self.tasks_of_product.filter(
+            is_removed = False,
             is_completed=False, 
             is_skipped=False, 
             task__statustask__status=previous_status)
@@ -385,6 +379,7 @@ class Product(TimeStampedModel, SoftDeletableModel):
         """
         # Retrieve the first active ProductTask (not completed and not skipped) ordered by the ProductTask order
         first_active_product_task = self.tasks_of_product.filter(
+            is_removed = False,
             is_completed=False, 
             is_skipped=False
         ).select_related('task__statustask').order_by('order').first()
@@ -403,9 +398,9 @@ class Product(TimeStampedModel, SoftDeletableModel):
         """
         Assign the predefined tasks of the current status to the product
         """
-        status_tasks_predefined = self.current_status.status_tasks.filter(is_predefined=True).order_by('order')
+        status_tasks_predefined = self.current_status.status_tasks.filter(is_predefined=True,is_removed = False).order_by('order')
         product_tasks = [
-            ProductTask(product=self, task=status_task.task, is_predefined=True)
+            ProductTask(product=self, task=status_task.task, is_predefined=True, is_removed = False)
             for status_task in status_tasks_predefined
         ]
         ProductTask.objects.bulk_create(product_tasks)
@@ -432,11 +427,11 @@ class Product(TimeStampedModel, SoftDeletableModel):
         get all the tasks of the product, and return the queryset of the tasks ordered by the created time of the status of the task and the order of the task in the status
         The instances returned are the instances of the ProductTask model
         """
-        tasks = self.tasks_of_product.select_related('task__statustask__status').order_by(
+        tasks = self.tasks_of_product.filter(is_removed = False).select_related('task__statustask__status').order_by(
             'task__statustask__status__created', 'task__statustask__order'
         )
         if only_active:
-            tasks = tasks.filter(is_completed=False, is_skipped=False)
+            tasks = tasks.filter(is_completed=False, is_skipped=False,is_removed = False,)
         return tasks
 
 
@@ -447,7 +442,9 @@ class Product(TimeStampedModel, SoftDeletableModel):
         return self.tasks_of_product.filter(Q(task = self.current_task) 
                                             & Q(product = self) 
                                             &  Q(is_completed = False) 
-                                            & Q(is_skipped = False))
+                                            & Q(is_skipped = False)
+                                            & Q(is_removed = False))
+    
 
     def list_status_result_history(self):
         """
