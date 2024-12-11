@@ -17,7 +17,8 @@ from .views import (
     CheckinView,
     CheckinNewView,
     UpdateLocationView,
-    ViewStatusView
+    ViewStatusView,
+    ViewTaskView
 
 
 )
@@ -33,6 +34,7 @@ urlpatterns = [
     path('manage_tasks/', ManageTasksView.as_view(), name='manage_tasks'),
     path('manage_locations/', ManageLocationsView.as_view(), name='manage_locations'),
     path('view_status/', ViewStatusView.as_view(), name='view_status'),
+    path('view_task/', ViewTaskView.as_view(), name='view_task'),
     # urls for checkin or update location
     path('checkin/', CheckinView.as_view(), name='checkin'),
     path('checkin_new/', CheckinNewView.as_view(), name='checkin_new'),

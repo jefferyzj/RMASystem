@@ -221,8 +221,9 @@ class ManageStatusesView(View):
                 messages.success(request, 'Statuses updated successfully.')
                 print("Statuses updated successfully")
             else:
-                messages.error(request, 'Error updating statuses.')
-                print("Error updating statuses")
+                for error in formset.errors:
+                    messages.error(request, error)
+                print(formset.errors)
         elif status_action == 'delete':
             status_id = request.POST.get('status_id')
             status = get_object_or_404(Status, pk=status_id)
@@ -394,6 +395,14 @@ class ManageTasksView(View):
             'existing_tasks': existing_tasks
         })
 
+class ViewTaskView(View):
+    template_name = 'view_task.html'
+
+    def get(self, request):
+        existing_tasks = StatusTask.get_existing_tasks_choices(show_desc=True)
+        return render(request, self.template_name, {
+            'existing_tasks': existing_tasks
+        })
 
 class ManageLocationsView(View):
     template_name = 'manage_locations.html'

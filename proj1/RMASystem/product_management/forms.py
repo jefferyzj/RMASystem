@@ -60,7 +60,9 @@ class StatusForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
         possible_next_statuses = cleaned_data.get('possible_next_statuses')
-        if self.instance.is_closed and possible_next_statuses:
+        is_closed = cleaned_data.get('is_closed')
+        
+        if is_closed and possible_next_statuses:
             raise ValidationError(f"Cannot create a transition from a closed status: {self.instance.name}")
         return cleaned_data
 
@@ -71,6 +73,9 @@ class StatusForm(forms.ModelForm):
             self.save_m2m()
             possible_next_statuses = self.cleaned_data.get('possible_next_statuses')
             print(f'possible_next_statuses: {possible_next_statuses}')
+            if status.is_closed:
+                StatusTransition.objects.filter(from_status=status).delete()
+                print(f'deleted transitions from {status.name} since it is closed')
             if possible_next_statuses:
                 for next_status in possible_next_statuses:
                     StatusTransition.objects.get_or_create(from_status=status, to_status=next_status)

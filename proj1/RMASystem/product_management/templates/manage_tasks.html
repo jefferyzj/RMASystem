@@ -76,6 +76,12 @@
         toggleTaskAction();
         toggleOrderField();
 
+        // Add event listeners to radio buttons
+        const taskActionRadios = document.querySelectorAll('input[name="task_action"]');
+        taskActionRadios.forEach(radio => {
+            radio.addEventListener('change', toggleTaskAction);
+        });
+
         // Display messages and handle redirection
         const messageContainer = document.querySelector('.messages');
         if (messageContainer && messageContainer.children.length > 0) {
@@ -90,29 +96,12 @@
                 window.location.href = "{% url 'manage_tasks' %}";
             }, 3000);
         }
-
-        // Add event listeners to radio buttons
-        const taskActionRadios = document.querySelectorAll('input[name="task_action"]');
-        taskActionRadios.forEach(radio => {
-            radio.addEventListener('change', toggleTaskAction);
-        });
-
-        const isPredefinedCheckbox = document.querySelector('input[name="is_predefined"]');
-        if (isPredefinedCheckbox) {
-            isPredefinedCheckbox.addEventListener('change', toggleOrderField);
-        }
-
-        const statusSelect = document.querySelector('select[name="status"]');
-        if (statusSelect) {
-            statusSelect.addEventListener('change', toggleOrderField);
-        }
     });
 </script>
 {% endblock %}
 
 {% block content %}
-<h1><a href="{% url 'manage_tasks' %}" class="clickable-title" title="Manage Task">Manage Task</a></h1>
-
+<h1>Manage Tasks</h1>
 
 <div id="message-container">
     {% if messages %}
@@ -127,8 +116,9 @@
 </div>
 
 <div>
-    <label><input type="radio" name="task_action" value="add" title="Add Task"> Add Task</label>
-    <label><input type="radio" name="task_action" value="delete" title="Delete Task"> Delete Task</label>
+    <label><input type="radio" name="task_action" value="add" title="Add Task" onclick="toggleTaskAction()"> Add Task</label>
+    <label><input type="radio" name="task_action" value="delete" title="Delete Task" onclick="toggleTaskAction()"> Delete Task</label>
+    <label><input type="radio" name="task_action" value="view" title="View Task" onclick="window.location.href='{% url 'view_task' %}'"> View Task</label>
 </div>
 
 <div id="display-task-section" class="task-action-section" style="display: block;">

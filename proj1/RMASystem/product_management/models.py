@@ -158,7 +158,7 @@ class Task(TimeStampedModel, SoftDeletableModel):
     )
 
     def __str__(self):
-        return f"This Task: Name: {self.task_name} | description: {self.description}."
+        return f"This Task:  {self.task_name} | description: {self.description}."
 
 
 class ProductTask(TimeStampedModel, OrderedModel, SoftDeletableModel):
