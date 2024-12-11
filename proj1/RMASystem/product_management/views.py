@@ -395,14 +395,7 @@ class ManageTasksView(View):
             'existing_tasks': existing_tasks
         })
 
-class ViewTaskView(View):
-    template_name = 'view_task.html'
 
-    def get(self, request):
-        existing_tasks = StatusTask.get_existing_tasks_choices(show_desc=True)
-        return render(request, self.template_name, {
-            'existing_tasks': existing_tasks
-        })
 
 class ManageLocationsView(View):
     template_name = 'manage_locations.html'

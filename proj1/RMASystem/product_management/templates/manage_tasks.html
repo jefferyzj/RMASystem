@@ -116,19 +116,13 @@
 </div>
 
 <div>
+    <label><input type="radio" name="task_action" value="view" title="View Task" onclick="toggleTaskAction()"> View Task</label>
     <label><input type="radio" name="task_action" value="add" title="Add Task" onclick="toggleTaskAction()"> Add Task</label>
     <label><input type="radio" name="task_action" value="delete" title="Delete Task" onclick="toggleTaskAction()"> Delete Task</label>
-    <label><input type="radio" name="task_action" value="view" title="View Task" onclick="window.location.href='{% url 'view_task' %}'"> View Task</label>
+
 </div>
 
-<div id="display-task-section" class="task-action-section" style="display: block;">
-    <h3>Existing Tasks</h3>
-    <ul>
-        {% for value, label in existing_tasks %}
-            <li>{{ label }}</li>
-        {% endfor %}
-    </ul>
-</div>
+
 
 <form method="post" id="add-task-form">
     {% csrf_token %}
@@ -163,6 +157,15 @@
         <button type="submit" name="task_action" value="delete" title="Save to delete task">Save to delete task</button>
     </div>
 </form>
+
+<div id="view-task-section" class="task-action-section" style="display: none;">
+    <h3>View Tasks</h3>
+    <ul>
+        {% for value, label in existing_tasks %}
+            <li>{{ label }}</li>
+        {% endfor %}
+    </ul>
+</div>
 
 <button onclick="window.location.href='{% url 'feature_manage' %}'" title="Go back to manage other features">Go back to manage other features</button>
 {% endblock %}
