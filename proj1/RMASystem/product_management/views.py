@@ -16,6 +16,9 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from .models import Location
 from .forms import CheckinNewForm, UpdateLocationForm
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+import json
 
 def home_view(request):
     return render(request, 'base.html')
@@ -26,28 +29,6 @@ class ProductListView(FilterView):
     context_object_name = 'products'
     paginate_by = 10
     filterset_class = ProductFilter
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        categories = self.request.GET.getlist('category')
-        if categories:
-            queryset = queryset.filter(category__name__in=categories)
-        search = self.request.GET.get('search')
-        if search:
-            queryset = queryset.filter(SN__icontains=search)
-        location = self.request.GET.get('location')
-        if location:
-            queryset = queryset.filter(location__rack_name=location)
-        priority_level = self.request.GET.get('priority_level')
-        if priority_level:
-            queryset = queryset.filter(priority_level=priority_level)
-        current_status = self.request.GET.get('current_status')
-        if current_status:
-            queryset = queryset.filter(current_status__name=current_status)
-        current_task = self.request.GET.get('current_task')
-        if current_task:
-            queryset = queryset.filter(current_task__action=current_task)
-        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -494,56 +475,93 @@ class CheckinView(View):
         return render(request, self.template_name)
 
 
-class CheckinNewView(View):
+class CheckinNewView(FormView):
     template_name = 'checkin_new.html'
+    form_class = CheckinNewForm
+    success_url = '/checkin_new/'
 
-    def get(self, request):
-        form = CheckinNewForm()
-        racks = Location.objects.values('rack_name').distinct()
-        return render(request, self.template_name, {'form': form, 'racks': racks})
+    def form_valid(self, form):
+        results = form.save()
+        if results['failed']:
+            messages.error(self.request, f"Failed to check in the following SNs: {', '.join([f'{SN} ({error})' for SN, error in results['failed']])}")
+        if results['success']:
+            messages.success(self.request, f"Successfully checked in the following SNs: {', '.join(results['success'])}")
+        return super().form_valid(form)
 
-    def post(self, request):
-        form = CheckinNewForm(request.POST)
-        if form.is_valid():
-            try:
-                form.save()
-                messages.success(request, 'Product checked in successfully.')
-            except ValidationError as e:
-                messages.error(request, e.message)
-        else:
-            messages.error(request, 'Error checking in product.')
-        racks = Location.objects.values('rack_name').distinct()
-        return render(request, self.template_name, {'form': form, 'racks': racks})
+    def form_invalid(self, form):
+        # Collect error messages for each invalid SN
+        error_messages = []
+        for field, errors in form.errors.items():
+            if field == 'SNs':
+                for error in errors:
+                    error_messages.append(error)
+            else:
+                error_messages.append(f"{field}: {', '.join(errors)}")
 
-class UpdateLocationView(View):
+        # Display the error messages
+        for error_message in error_messages:
+            messages.error(self.request, error_message)
+
+        return super().form_invalid(form)
+
+class UpdateLocationView(FormView):
     template_name = 'update_location.html'
+    form_class = UpdateLocationForm
+    success_url = '/update_location/'
 
-    def get(self, request):
-        form = UpdateLocationForm()
-        racks = Location.objects.values('rack_name').distinct()
-        return render(request, self.template_name, {'form': form, 'racks': racks})
+    def form_valid(self, form):
+        results = form.save()
+        if results['failed']:
+            messages.error(self.request, f"Failed to update the location for the following SNs: {', '.join([f'{SN} ({error})' for SN, error in results['failed']])}")
+        if results['success']:
+            messages.success(self.request, f"Successfully updated the location for the following SNs: {', '.join(results['success'])}")
+        return super().form_valid(form)
 
+    def form_invalid(self, form):
+        # Collect error messages for each invalid SN
+        error_messages = []
+        for field, errors in form.errors.items():
+            if field == 'SNs':
+                for error in errors:
+                    error_messages.append(error)
+                    print(error)
+            else:
+                error_messages.append(f"{field}: {', '.join(errors)}")
+
+        # Display the error messages
+        for error_message in error_messages:
+            messages.error(self.request, error_message)
+            print(error_message)
+
+        return super().form_invalid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['racks'] = Location.objects.values('rack_name').distinct()
+        return context
+
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class SearchLocationView(View):
     def post(self, request):
-        form = UpdateLocationForm(request.POST)
-        if form.is_valid():
-            SN = form.cleaned_data.get('SN')
-            rack_name = form.cleaned_data.get('rack_name')
-            layer_number = form.cleaned_data.get('layer_number')
-            space_number = form.cleaned_data.get('space_number')
-
-            try:
-                product = Product.objects.get(SN=SN)
-                product.location = Location.objects.get(rack_name=rack_name, layer_number=layer_number, space_number=space_number)
-                product.save()
-                messages.success(request, 'Product location updated successfully.')
-            except Product.DoesNotExist:
-                messages.error(request, 'Product with the specified serial number does not exist.')
-
-            return redirect('update_location')
-        else:
-            messages.error(request, 'Error updating product location.')
-        racks = Location.objects.values('rack_name').distinct()
-        return render(request, self.template_name, {'form': form, 'racks': racks})
+        try:
+            data = json.loads(request.body)
+            SNs = data.get('SNs', '').split()
+            results = []
+            for SN in SNs:
+                try:
+                    product = Product.objects.get(SN=SN)
+                    if product.location:
+                        location_info = f"{product.location}"
+                    else:
+                        location_info = "Not assigned"
+                    results.append({'SN': SN, 'location': location_info})
+                except Product.DoesNotExist:
+                    results.append({'SN': SN, 'location': 'Does not exist'})
+            return JsonResponse({'results': results})
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
 @require_GET   
 def get_predefined_tasks(request):

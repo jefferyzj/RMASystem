@@ -18,7 +18,8 @@ from .views import (
     CheckinNewView,
     UpdateLocationView,
     ViewStatusView,
-    ProductStatusTaskEditView
+    ProductStatusTaskEditView,
+    SearchLocationView
 
 
 )
@@ -48,4 +49,5 @@ urlpatterns = [
     path('get_order_choices/', get_order_choices, name='get_order_choices'),
     path('fetch_categories/', fetch_categories, name='fetch_categories'),
     path('get_layers_for_rack/', get_layers_for_rack, name='get_layers_for_rack'),
+    path('search_location/', SearchLocationView.as_view(), name='search_location'),
 ]

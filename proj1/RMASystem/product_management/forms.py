@@ -7,6 +7,7 @@ from .utilhelpers import PRIORITY_LEVEL_CHOICES
 from django.core.validators import RegexValidator, MinValueValidator
 from django.forms import modelformset_factory
 from django.core.exceptions import ValidationError
+import re
 
 
 class BaseForm(forms.ModelForm):
@@ -335,12 +336,47 @@ class ProductForm(BaseForm):
 
 class CheckinNewForm(forms.Form):
     category = forms.ModelChoiceField(queryset=Category.objects.all(), required=True, label="Category")
-    SN = forms.CharField(max_length=13, required=True, validators=[RegexValidator(regex=r'^\d{13}$', message='SN must be exactly 13 digits', code='invalid_sn')], label="Serial Number")
+    SNs = forms.CharField(widget=forms.Textarea(attrs={'rows': 5}), required=True, label="Serial Numbers (one per line)")
     short_12V_48V = forms.ChoiceField(choices=[('P', 'Pass'), ('F12', 'Fail on 12V'), ('F48', 'Fail on 48V')], required=True, initial='P', label="Short 12V/48V")
     priority_level = forms.ChoiceField(choices=PRIORITY_LEVEL_CHOICES, required=True, initial='Normal', label="Priority Level")
+
+    def clean_SNs(self):
+        SNs = self.cleaned_data.get('SNs').split()
+        for SN in SNs:
+            if not re.match(r'^\d{13}$', SN):
+                raise forms.ValidationError(f"SN {SN} must be exactly 13 digits.")
+            if Product.objects.filter(SN=SN).exists():
+                raise forms.ValidationError(f"Product with SN {SN} already exists.")
+        return SNs
+
+    def save(self):
+        category = self.cleaned_data.get('category')
+        SNs = self.cleaned_data.get('SNs')
+        short_12V_48V = self.cleaned_data.get('short_12V_48V')
+        priority_level = self.cleaned_data.get('priority_level')
+
+        results = {'success': [], 'failed': []}
+
+        for SN in SNs:
+            try:
+                product = Product(
+                    SN=SN,
+                    category=category,
+                    short_12V_48V=short_12V_48V,
+                    priority_level=priority_level
+                )
+                product.save()
+                results['success'].append(SN)
+            except Exception as e:
+                results['failed'].append((SN, str(e)))
+
+        return results
+
+class UpdateLocationForm(forms.Form):
+    SNs = forms.CharField(widget=forms.Textarea(attrs={'rows': 5}), required=True, label="Serial Numbers (one per line)")
     rack_name = forms.ChoiceField(choices=[], required=True, label="Rack")
     layer_number = forms.ChoiceField(choices=[], required=True, label="Layer")
-    space_number = forms.ChoiceField(choices=[], required=True, label="Space")
+    space_number = forms.ChoiceField(choices=[], required=False, label="Space (optional)")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -352,65 +388,63 @@ class CheckinNewForm(forms.Form):
                 self.fields['layer_number'].choices = [(layer, layer) for layer in Location.objects.filter(rack_name=rack_name).values_list('layer_number', flat=True).distinct()]
                 if 'layer_number' in self.data:
                     layer_number = self.data.get('layer_number')
-                    self.fields['space_number'].choices = [(space, space) for space in Location.objects.filter(rack_name=rack_name, layer_number=layer_number).values_list('space_number', flat=True)]
+                    self.fields['space_number'].choices = [(space, space) for space in Location.objects.filter(rack_name=rack_name, layer_number=layer_number, product__isnull=True).values_list('space_number', flat=True)]
             except (ValueError, TypeError):
                 pass
         else:
             self.fields['layer_number'].choices = []
             self.fields['space_number'].choices = []
 
+    def clean_SNs(self):
+        SNs = self.cleaned_data.get('SNs').split()
+        for SN in SNs:
+            if not re.match(r'^\d{13}$', SN):
+                raise forms.ValidationError(f"SN {SN} must be exactly 13 digits.")
+            if not Product.objects.filter(SN=SN).exists():
+                raise forms.ValidationError(f"Product with SN {SN} does not exist.")
+        return SNs
+
     def save(self):
-        category = self.cleaned_data.get('category')
-        SN = self.cleaned_data.get('SN')
-        short_12V_48V = self.cleaned_data.get('short_12V_48V')
-        priority_level = self.cleaned_data.get('priority_level')
+        SNs = self.cleaned_data.get('SNs')
         rack_name = self.cleaned_data.get('rack_name')
         layer_number = self.cleaned_data.get('layer_number')
         space_number = self.cleaned_data.get('space_number')
 
-        location = Location.objects.get(rack_name=rack_name, layer_number=layer_number, space_number=space_number)
+        results = {'success': [], 'failed': []}
 
-        # Check if the location is already assigned to another product
-        if Product.objects.filter(location=location).exists():
-            raise ValidationError(f"The location {location} is already assigned to another product.")
+        if space_number and len(SNs) > 1:
+            raise ValidationError("Cannot assign the same space to multiple products.")
 
-        product = Product(
-            SN=SN,
-            category=category,
-            short_12V_48V=short_12V_48V,
-            priority_level=priority_level,
-            location=location
-        )
-        product.save()
-        # Assign the product to the location
-        location.product = product
-        location.save()
+        if not space_number:
+            available_spaces = Location.objects.filter(rack_name=rack_name, layer_number=layer_number, product__isnull=True).order_by('space_number')
+            if available_spaces.count() < len(SNs):
+                raise ValidationError("Not enough available spaces in the selected layer.")
 
-
-        return product
-
-class UpdateLocationForm(forms.Form):
-    sn = forms.CharField(max_length=13, required=True, validators=[RegexValidator(regex=r'^\d{13}$', message='SN must be exactly 13 digits', code='invalid_sn')], label="Serial Number")
-    rack_name = forms.ChoiceField(choices=[], required=True, label="Rack")
-    layer_number = forms.ChoiceField(choices=[], required=True, label="Layer")
-    space_number = forms.ChoiceField(choices=[], required=True, label="Space")
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields['rack_name'].choices = [(rack['rack_name'], rack['rack_name']) for rack in Location.objects.values('rack_name').distinct()]
-
-        if 'rack_name' in self.data:
+        for SN in SNs:
             try:
-                rack_name = self.data.get('rack_name')
-                self.fields['layer_number'].choices = [(layer, layer) for layer in Location.objects.filter(rack_name=rack_name).values_list('layer_number', flat=True).distinct()]
-                if 'layer_number' in self.data:
-                    layer_number = self.data.get('layer_number')
-                    self.fields['space_number'].choices = [(space, space) for space in Location.objects.filter(rack_name=rack_name, layer_number=layer_number).values_list('space_number', flat=True)]
-            except (ValueError, TypeError):
-                pass
-        else:
-            self.fields['layer_number'].choices = []
-            self.fields['space_number'].choices = []
+                product = Product.objects.get(SN=SN)
+                if space_number:
+                    location = Location.objects.get(rack_name=rack_name, layer_number=layer_number, space_number=space_number)
+                else:
+                    location = available_spaces.first()
+                    available_spaces = available_spaces.exclude(space_number=location.space_number)
+
+                # Check if the location is already assigned to another product
+                if Product.objects.filter(location=location).exists():
+                    raise ValidationError(f"The location {location} is already assigned to another product.")
+
+                product.location = location
+                product.save()
+
+                # Update the location's product field
+                location.product = product
+                location.save()
+
+                results['success'].append(SN)
+            except Exception as e:
+                results['failed'].append((SN, str(e)))
+
+        return results
 
 
 # Formsets for featureManageView

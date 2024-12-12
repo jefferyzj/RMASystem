@@ -2,44 +2,133 @@
 
 {% block title %}Product List{% endblock %}
 
+{% block extra_head %}
+<style>
+    .filter-form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+    .filter-form div {
+        flex: 1;
+    }
+    .category-filter {
+        margin-bottom: 20px;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+    }
+    table, th, td {
+        border: 1px solid #ddd;
+    }
+    th, td {
+        padding: 8px;
+        text-align: left;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+    tr:nth-child(even) {
+        background-color: #f9f9f9;
+    }
+    tr:hover {
+        background-color: #f1f1f1;
+    }
+    .pagination {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+    }
+    .pagination a {
+        padding: 8px 16px;
+        text-decoration: none;
+        color: #007bff;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+    .pagination a:hover {
+        background-color: #ddd;
+    }
+</style>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const filterForm = document.querySelector('.filter-form');
+        const filterInputs = filterForm.querySelectorAll('select, input[type="radio"]');
+
+        filterInputs.forEach(input => {
+            input.addEventListener('change', function() {
+                cleanAndSubmitForm();
+            });
+        });
+
+        const resetButton = document.getElementById('reset-filters');
+        resetButton.addEventListener('click', function() {
+            // Clear all filter inputs
+            filterInputs.forEach(input => {
+                if (input.type === 'radio' || input.type === 'checkbox') {
+                    input.checked = false;
+                } else {
+                    input.value = '';
+                }
+            });
+            // Remove query parameters from the URL
+            const url = new URL(window.location);
+            url.search = '';
+            window.history.pushState({}, '', url);
+            // Submit the form
+            filterForm.submit();
+        });
+
+        function cleanAndSubmitForm() {
+            const url = new URL(window.location);
+            const params = new URLSearchParams(new FormData(filterForm));
+            for (const [key, value] of params.entries()) {
+                if (!value) {
+                    params.delete(key);
+                }
+            }
+            url.search = params.toString();
+            window.history.pushState({}, '', url);
+            filterForm.submit();
+        }
+    });
+</script>
+{% endblock %}
+
 {% block content %}
 <h2>Product List</h2>
 
-<form method="get">
-    <input type="text" name="search" placeholder="Search by SN" value="{{ request.GET.search }}">
-    <select name="location">
-        <option value="">All Locations</option>
-        {% for location in locations %}
-            <option value="{{ location.rack_name }}" {% if request.GET.location == location.rack_name %}selected{% endif %}>{{ location.rack_name }}</option>
-        {% endfor %}
-    </select>
-    <select name="priority_level">
-        <option value="">All Priority Levels</option>
-        {% for level in priority_levels %}
-            <option value="{{ level.0 }}" {% if request.GET.priority_level == level.0 %}selected{% endif %}>{{ level.1 }}</option>
-        {% endfor %}
-    </select>
-    <select name="current_status">
-        <option value="">All Statuses</option>
-        {% for status in statuses %}
-            <option value="{{ status.name }}" {% if request.GET.current_status == status.name %}selected{% endif %}>{{ status.name }}</option>
-        {% endfor %}
-    </select>
-    <select name="current_task">
-        <option value="">All Tasks</option>
-        {% for task in tasks %}
-            <option value="{{ task.action }}" {% if request.GET.current_task == task.action %}selected{% endif %}>{{ task.action }}</option>
-        {% endfor %}
-    </select>
-    <button type="submit">Filter</button>
-</form>
-
-<h3>Filter by Category</h3>
-<form method="get">
-    {% for category in categories %}
-        <input type="checkbox" name="category" value="{{ category.name }}" {% if category.name in selected_categories %}checked{% endif %}> {{ category.name }}<br>
-    {% endfor %}
-    <button type="submit">Apply Filter</button>
+<form method="get" class="filter-form">
+    <div class="category-filter">
+        {{ filter.form.category.label_tag }}<br>
+        {{ filter.form.category }}
+    </div>
+    <div>
+        {{ filter.form.search.label_tag }}<br>
+        {{ filter.form.search }}
+    </div>
+    <div>
+        {{ filter.form.location.label_tag }}<br>
+        {{ filter.form.location }}
+    </div>
+    <div>
+        {{ filter.form.priority_level.label_tag }}<br>
+        {{ filter.form.priority_level }}
+    </div>
+    <div>
+        {{ filter.form.current_status.label_tag }}<br>
+        {{ filter.form.current_status }}
+    </div>
+    <div>
+        {{ filter.form.current_task.label_tag }}<br>
+        {{ filter.form.current_task }}
+    </div>
+    <div>
+        <button type="button" id="reset-filters">Reset</button>
+    </div>
 </form>
 
 <table>
@@ -59,10 +148,10 @@
             <tr>
                 <td>{{ product.SN }}</td>
                 <td>{{ product.category.name }}</td>
-                <td>{{ product.location.rack_name }}</td>
+                <td>{{ product.location.short_name }}</td>
                 <td>{{ product.get_priority_level_display }}</td>
                 <td>{{ product.current_status.name }}</td>
-                <td>{{ product.current_task.action }}</td>
+                <td>{{ product.current_task.task_name }}</td>
                 <td>
                     <a href="{% url 'product_detail' product.SN %}">Detail</a>
                     <a href="{% url 'product_status_task_edit' product.SN %}">Edit Status/Task</a>

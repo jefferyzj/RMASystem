@@ -3,11 +3,19 @@
 {% block title %}Update Location{% endblock %}
 
 {% block extra_head %}
+<style>
+    .hidden {
+        display: none;
+    }
+</style>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const rackNameField = document.querySelector('select[name="rack_name"]');
         const layerNumberField = document.querySelector('select[name="layer_number"]');
         const spaceNumberField = document.querySelector('select[name="space_number"]');
+        const searchButton = document.getElementById('search-button');
+        const SNsField = document.querySelector('textarea[name="SNs"]');
+        const searchResults = document.getElementById('search-results');
 
         if (rackNameField) {
             rackNameField.addEventListener('change', function() {
@@ -31,7 +39,7 @@
             layerNumberField.addEventListener('change', function() {
                 const rackName = rackNameField.value;
                 const layerNumber = this.value;
-                fetch(`/get_spaces_for_layer/?rack_name=${rackName}&layer_number=${layerNumber}`)
+                fetch(`/get_empty_spaces_for_layer/?rack_name=${rackName}&layer_number=${layerNumber}`)
                     .then(response => response.json())
                     .then(data => {
                         spaceNumberField.innerHTML = '<option value="" selected disabled>Select a space</option>';
@@ -44,6 +52,45 @@
                     });
             });
         }
+
+        if (searchButton) {
+            searchButton.addEventListener('click', function() {
+                const SNs = SNsField.value;
+                fetch('/search_location/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({ SNs })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    searchResults.innerHTML = '';
+                    data.results.forEach(result => {
+                        const div = document.createElement('div');
+                        div.textContent = `SN: ${result.SN}, Location: ${result.location}`;
+                        searchResults.appendChild(div);
+                    });
+                });
+            });
+        }
+
+        // Display messages and handle redirection
+        const messageContainer = document.querySelector('.messages');
+        if (messageContainer && messageContainer.children.length > 0) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.classList.add(messageContainer.children[0].classList.contains('alert-success') ? 'toast-success' : 'toast-error');
+            toast.innerHTML = messageContainer.children[0].innerHTML;
+            document.body.appendChild(toast);
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
+            // Hide the message container
+            messageContainer.classList.add('hidden');
+        }
     });
 </script>
 {% endblock %}
@@ -51,7 +98,7 @@
 {% block content %}
 <h1>Update Location</h1>
 
-<div id="message-container">
+<div id="message-container" class="hidden">
     {% if messages %}
     <div class="messages">
         {% for message in messages %}
@@ -66,9 +113,11 @@
 <form method="post">
     {% csrf_token %}
     <div class="form-group">
-        <label for="sn">Serial Number</label>
-        {{ form.sn }}
+        <label for="SNs">Serial Numbers (one per line)</label>
+        {{ form.SNs }}
+        <button type="button" id="search-button" class="btn btn-info">Search</button>
     </div>
+    <div id="search-results"></div>
     <div class="form-group">
         <label for="rack_name">Rack</label>
         <select name="rack_name" id="rack_name" class="form-control">
@@ -86,7 +135,7 @@
         </select>
     </div>
     <div class="form-group">
-        <label for="space_number">Space</label>
+        <label for="space_number">Space (optional)</label>
         <select name="space_number" id="space_number" class="form-control">
             <option value="" selected disabled>Select a space</option>
             <!-- Options will be populated dynamically based on selected layer -->

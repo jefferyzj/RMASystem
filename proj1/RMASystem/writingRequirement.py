@@ -97,3 +97,18 @@ Style:
 
 The manage location page should follow the style of the manage tasks page.
 """
+
+
+
+"""
+Requirements for Update Location Page:
+
+Batch Processing: The form should support batch processing to update the locations of multiple products.
+Search Button: Near the SN field, there should be a search button. When the user enters one or more SNs and clicks the search button, it should display the list of SNs and their corresponding locations. If any SN does not exist, it should indicate that it does not exist. This search functionality is just a help button and does not submit the update.
+Optional Space Field: The space field should be optional. If the user enters the SNs, selects a rack, and selects a layer, it is enough to update the location. If the space number is not specified, the system should automatically pick an available space in the selected layer for each product. If there are not enough available spaces, it should raise an error.
+Validation for Multiple Products: If the user provides more than one product and selects a space to check in, it should raise an error since multiple products cannot be stored in one location. If the user leaves the space field blank, the system should first check if there are enough available spaces to store the products in the selected layer of the rack. If not, it should raise an error. If there are enough spaces, the system should assign the locations with spaces to each product and then update the locations of all the provided products.
+
+The logic is still not clear, need to think about it.
+1. to update a product with a location, we first need to release the location of the product, then assign the location to the product.
+2. 
+"""

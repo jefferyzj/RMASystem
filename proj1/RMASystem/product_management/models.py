@@ -28,6 +28,9 @@ class Location(TimeStampedModel):
     def __str__(self):
         return f'{self.rack_name} - Layer {self.layer_number} - Space {self.space_number or "N/A"}'
 
+    def short_name(self):
+        return f'{self.rack_name} - L{self.layer_number} - S{self.space_number or "N/A"}'
+
     @staticmethod
     def create_rack_with_layers_and_spaces(rack_name, num_layers, num_spaces_per_layer):
         for layer in range(1, num_layers + 1):
@@ -158,7 +161,7 @@ class Task(TimeStampedModel, SoftDeletableModel):
     )
 
     def __str__(self):
-        return f"This Task:  {self.task_name} | description: {self.description}."
+        return f"This Task:  {self.task_name} "
 
 
 class ProductTask(TimeStampedModel, OrderedModel, SoftDeletableModel):
