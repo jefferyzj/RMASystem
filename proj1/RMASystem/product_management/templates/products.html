@@ -37,7 +37,7 @@
 <h3>Filter by Category</h3>
 <form method="get">
     {% for category in categories %}
-        <input type="checkbox" name="category" value="{{ category.name }}" {% if category.name in request.GET.getlist('category') %}checked{% endif %}> {{ category.name }}<br>
+        <input type="checkbox" name="category" value="{{ category.name }}" {% if category.name in selected_categories %}checked{% endif %}> {{ category.name }}<br>
     {% endfor %}
     <button type="submit">Apply Filter</button>
 </form>
@@ -74,11 +74,11 @@
 
 <div class="pagination">
     {% if products.has_previous %}
-        <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% for category in request.GET.getlist('category') %}category={{ category }}&{% endfor %}{% if request.GET.location %}location={{ request.GET.location }}&{% endif %}{% if request.GET.priority_level %}priority_level={{ request.GET.priority_level }}&{% endif %}{% if request.GET.current_status %}current_status={{ request.GET.current_status }}&{% endif %}{% if request.GET.current_task %}current_task={{ request.GET.current_task }}&{% endif %}page={{ products.previous_page_number }}">Previous</a>
+        <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% for category in selected_categories %}category={{ category }}&{% endfor %}{% if request.GET.location %}location={{ request.GET.location }}&{% endif %}{% if request.GET.priority_level %}priority_level={{ request.GET.priority_level }}&{% endif %}{% if request.GET.current_status %}current_status={{ request.GET.current_status }}&{% endif %}{% if request.GET.current_task %}current_task={{ request.GET.current_task }}&{% endif %}page={{ products.previous_page_number }}">Previous</a>
     {% endif %}
     <span>Page {{ products.number }} of {{ products.paginator.num_pages }}</span>
     {% if products.has_next %}
-        <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% for category in request.GET.getlist('category') %}category={{ category }}&{% endfor %}{% if request.GET.location %}location={{ request.GET.location }}&{% endif %}{% if request.GET.priority_level %}priority_level={{ request.GET.priority_level }}&{% endif %}{% if request.GET.current_status %}current_status={{ request.GET.current_status }}&{% endif %}{% if request.GET.current_task %}current_task={{ request.GET.current_task }}&{% endif %}page={{ products.next_page_number }}">Next</a>
+        <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% for category in selected_categories %}category={{ category }}&{% endfor %}{% if request.GET.location %}location={{ request.GET.location }}&{% endif %}{% if request.GET.priority_level %}priority_level={{ request.GET.priority_level }}&{% endif %}{% if request.GET.current_status %}current_status={{ request.GET.current_status }}&{% endif %}{% if request.GET.current_task %}current_task={{ request.GET.current_task }}&{% endif %}page={{ products.next_page_number }}">Next</a>
     {% endif %}
 </div>
 {% endblock %}

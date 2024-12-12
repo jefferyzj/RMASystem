@@ -152,9 +152,6 @@ class ProductTaskForm(BaseForm):
         fields = ['product', 'task', 'result', 'note', 'is_completed', 'is_skipped', 'is_predefined']
 
 
-from django import forms
-from django.core.validators import MinValueValidator
-from .models import Location
 
 class LocationForm(forms.ModelForm):
     num_spaces_per_layer = forms.IntegerField(required=False, label="Number of Spaces per Layer", initial=60)
@@ -338,7 +335,7 @@ class ProductForm(BaseForm):
 
 class CheckinNewForm(forms.Form):
     category = forms.ModelChoiceField(queryset=Category.objects.all(), required=True, label="Category")
-    sn = forms.CharField(max_length=13, required=True, validators=[RegexValidator(regex=r'^\d{13}$', message='SN must be exactly 13 digits', code='invalid_sn')], label="Serial Number")
+    SN = forms.CharField(max_length=13, required=True, validators=[RegexValidator(regex=r'^\d{13}$', message='SN must be exactly 13 digits', code='invalid_sn')], label="Serial Number")
     short_12V_48V = forms.ChoiceField(choices=[('P', 'Pass'), ('F12', 'Fail on 12V'), ('F48', 'Fail on 48V')], required=True, initial='P', label="Short 12V/48V")
     priority_level = forms.ChoiceField(choices=PRIORITY_LEVEL_CHOICES, required=True, initial='Normal', label="Priority Level")
     rack_name = forms.ChoiceField(choices=[], required=True, label="Rack")
@@ -361,6 +358,36 @@ class CheckinNewForm(forms.Form):
         else:
             self.fields['layer_number'].choices = []
             self.fields['space_number'].choices = []
+
+    def save(self):
+        category = self.cleaned_data.get('category')
+        SN = self.cleaned_data.get('SN')
+        short_12V_48V = self.cleaned_data.get('short_12V_48V')
+        priority_level = self.cleaned_data.get('priority_level')
+        rack_name = self.cleaned_data.get('rack_name')
+        layer_number = self.cleaned_data.get('layer_number')
+        space_number = self.cleaned_data.get('space_number')
+
+        location = Location.objects.get(rack_name=rack_name, layer_number=layer_number, space_number=space_number)
+
+        # Check if the location is already assigned to another product
+        if Product.objects.filter(location=location).exists():
+            raise ValidationError(f"The location {location} is already assigned to another product.")
+
+        product = Product(
+            SN=SN,
+            category=category,
+            short_12V_48V=short_12V_48V,
+            priority_level=priority_level,
+            location=location
+        )
+        product.save()
+        # Assign the product to the location
+        location.product = product
+        location.save()
+
+
+        return product
 
 class UpdateLocationForm(forms.Form):
     sn = forms.CharField(max_length=13, required=True, validators=[RegexValidator(regex=r'^\d{13}$', message='SN must be exactly 13 digits', code='invalid_sn')], label="Serial Number")

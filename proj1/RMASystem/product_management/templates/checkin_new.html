@@ -31,7 +31,7 @@
             layerNumberField.addEventListener('change', function() {
                 const rackName = rackNameField.value;
                 const layerNumber = this.value;
-                fetch(`/get_spaces_for_layer/?rack_name=${rackName}&layer_number=${layerNumber}`)
+                fetch(`/get_empty_spaces_for_layer/?rack_name=${rackName}&layer_number=${layerNumber}`)
                     .then(response => response.json())
                     .then(data => {
                         spaceNumberField.innerHTML = '<option value="" selected disabled>Select a space</option>';
@@ -43,6 +43,20 @@
                         });
                     });
             });
+        }
+
+        // Display messages and handle redirection
+        const messageContainer = document.querySelector('.messages');
+        if (messageContainer && messageContainer.children.length > 0) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.classList.add(messageContainer.children[0].classList.contains('alert-success') ? 'toast-success' : 'toast-error');
+            toast.innerHTML = messageContainer.children[0].innerHTML;
+            document.body.appendChild(toast);
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
         }
     });
 </script>
@@ -70,8 +84,8 @@
         {{ form.category }}
     </div>
     <div class="form-group">
-        <label for="sn">Serial Number</label>
-        {{ form.sn }}
+        <label for="SN">Serial Number</label>
+        {{ form.SN }}
     </div>
     <div class="form-group">
         <label for="short_12V_48V">Short 12V/48V</label>

@@ -9,7 +9,7 @@ from .views import (
     get_order_choices,
     fetch_categories,
     get_layers_for_rack,
-    get_spaces_for_layer,
+    get_empty_spaces_for_layer,
     ManageCategoriesView,
     ManageStatusesView,
     ManageTasksView,
@@ -17,7 +17,8 @@ from .views import (
     CheckinView,
     CheckinNewView,
     UpdateLocationView,
-    ViewStatusView
+    ViewStatusView,
+    ProductStatusTaskEditView
 
 
 )
@@ -25,6 +26,8 @@ from .views import (
 urlpatterns = [
     path('', home_view, name='home'),
     path('products/', ProductListView.as_view(), name='product_list'),
+    path('products/<str:SN>/', ProductDetailView.as_view(), name='product_detail'),
+    path('products/<str:SN>/edit/', ProductStatusTaskEditView.as_view(), name='product_status_task_edit'),
     
     #urls for feature management
     path('feature_manage/', FeatureManageView.as_view(), name='feature_manage'),
@@ -40,7 +43,7 @@ urlpatterns = [
     
 
     # urls for helper views
-    path('get_spaces_for_layer/', get_spaces_for_layer, name='get_spaces_for_layer'),
+    path('get_empty_spaces_for_layer/', get_empty_spaces_for_layer, name='get_empty_spaces_for_layer'),
     path('get_predefined_tasks/', get_predefined_tasks, name='get_predefined_tasks'),
     path('get_order_choices/', get_order_choices, name='get_order_choices'),
     path('fetch_categories/', fetch_categories, name='fetch_categories'),

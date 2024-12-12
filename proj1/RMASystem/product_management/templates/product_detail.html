@@ -5,20 +5,16 @@
 {% block content %}
 <h2>Product Detail</h2>
 
-<form method="get" action="{% url 'product_detail' %}">
-    <input type="text" name="sn" placeholder="Enter SN" required>
-    <button type="submit">Search</button>
-</form>
+<p><strong>Serial Number:</strong> {{ product.SN }}</p>
+<p><strong>Category:</strong> {{ product.category.name }}</p>
+<p><strong>Location:</strong> {{ product.location.rack_name }}</p>
+<p><strong>Priority Level:</strong> {{ product.get_priority_level_display }}</p>
+<p><strong>Current Status:</strong> {{ product.current_status.name }}</p>
+<p><strong>Current Task:</strong> {{ product.current_task.action }}</p>
 
-<form method="post">
-    {% csrf_token %}
-    {{ form.as_p }}
+<h3>Status History</h3>
+<pre>{{ status_history }}</pre>
 
-    <h3>Status Result History</h3>
-    <pre>{{ status_history }}</pre>
-
-    <button type="submit">Save Changes</button>
-    <a href="{% url 'product_status_task_edit' product.SN %}">Edit Status/Task</a>
-    <a href="{% url 'product_list' %}">Back to Product List</a>
-</form>
+<a href="{% url 'product_list' %}">Back to Product List</a>
+<a href="{% url 'product_status_task_edit' product.SN %}">Edit Status/Task</a>
 {% endblock %}

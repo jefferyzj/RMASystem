@@ -32,6 +32,21 @@ class ProductListView(FilterView):
         categories = self.request.GET.getlist('category')
         if categories:
             queryset = queryset.filter(category__name__in=categories)
+        search = self.request.GET.get('search')
+        if search:
+            queryset = queryset.filter(SN__icontains=search)
+        location = self.request.GET.get('location')
+        if location:
+            queryset = queryset.filter(location__rack_name=location)
+        priority_level = self.request.GET.get('priority_level')
+        if priority_level:
+            queryset = queryset.filter(priority_level=priority_level)
+        current_status = self.request.GET.get('current_status')
+        if current_status:
+            queryset = queryset.filter(current_status__name=current_status)
+        current_task = self.request.GET.get('current_task')
+        if current_task:
+            queryset = queryset.filter(current_task__action=current_task)
         return queryset
 
     def get_context_data(self, **kwargs):
@@ -41,6 +56,7 @@ class ProductListView(FilterView):
         context['priority_levels'] = PRIORITY_LEVEL_CHOICES
         context['statuses'] = Status.objects.all()
         context['tasks'] = Task.objects.all()
+        context['selected_categories'] = self.request.GET.getlist('category')
         return context
 
 class ProductDetailView(UpdateView):
@@ -48,7 +64,7 @@ class ProductDetailView(UpdateView):
     form_class = ProductForm
     template_name = 'product_detail.html'
     slug_field = 'SN'
-    slug_url_kwarg = 'sn'
+    slug_url_kwarg = 'SN'
     context_object_name = 'product'
 
     def get_context_data(self, **kwargs):
@@ -65,22 +81,22 @@ class ProductDetailView(UpdateView):
         return super().form_valid(form)
 
     def get_success_url(self):
-        return reverse_lazy('product_detail', kwargs={'sn': self.object.SN})
+        return reverse_lazy('product_detail', kwargs={'SN': self.object.SN})
 
 class ProductStatusTaskEditView(UpdateView):
     model = Product
     form_class = ProductForm
     template_name = 'product_status_task_edit.html'
     slug_field = 'SN'
-    slug_url_kwarg = 'sn'
+    slug_url_kwarg = 'SN'
     context_object_name = 'product'
 
     def get_success_url(self):
-        return reverse_lazy('product_detail', kwargs={'sn': self.object.SN})
+        return reverse_lazy('product_detail', kwargs={'SN': self.object.SN})
 
 class ProductTaskView(View):
-    def get(self, request, sn):
-        product = get_object_or_404(Product, SN=sn)
+    def get(self, request, SN):
+        product = get_object_or_404(Product, SN=SN)
         ongoing_task = ProductTask.objects.filter(product=product, is_completed=False, is_removed = False).first()
         form = ProductTaskForm(instance=ongoing_task)
         return render(request, 'product_task.html', {'form': form, 'product': product, 'ongoing_task': ongoing_task})
@@ -90,7 +106,7 @@ class ProductTaskView(View):
         form = ProductTaskForm(request.POST, instance=task)
         if form.is_valid():
             form.save()
-            return redirect('product_task', sn=task.product.SN)
+            return redirect('product_task', SN=task.product.SN)
         return render(request, 'product_task.html', {'form': form, 'product': task.product, 'ongoing_task': task})
 
 class AddTaskView(CreateView):
@@ -98,12 +114,12 @@ class AddTaskView(CreateView):
     template_name = 'add_task.html'
 
     def form_valid(self, form):
-        product = get_object_or_404(Product, SN=self.kwargs['sn'])
+        product = get_object_or_404(Product, SN=self.kwargs['SN'])
         form.instance.product = product
         return super().form_valid(form)
 
     def get_success_url(self):
-        return reverse_lazy('product_edit', kwargs={'sn': self.kwargs['sn']})
+        return reverse_lazy('product_edit', kwargs={'SN': self.kwargs['SN']})
 
 class LocationCreateView(CreateView):
     model = Location
@@ -489,27 +505,11 @@ class CheckinNewView(View):
     def post(self, request):
         form = CheckinNewForm(request.POST)
         if form.is_valid():
-            category = form.cleaned_data.get('category')
-            sn = form.cleaned_data.get('sn')
-            short_12V_48V = form.cleaned_data.get('short_12V_48V')
-            priority_level = form.cleaned_data.get('priority_level')
-            rack_name = form.cleaned_data.get('rack_name')
-            layer_number = form.cleaned_data.get('layer_number')
-            space_number = form.cleaned_data.get('space_number')
-
-            product, created = Product.objects.get_or_create(sn=sn, defaults={
-                'category': category,
-                'short_12V_48V': short_12V_48V,
-                'priority_level': priority_level,
-                'location': Location.objects.get(rack_name=rack_name, layer_number=layer_number, space_number=space_number)
-            })
-
-            if not created:
-                product.location = Location.objects.get(rack_name=rack_name, layer_number=layer_number, space_number=space_number)
-                product.save()
-
-            messages.success(request, 'Product checked in successfully.')
-            return redirect('checkin_new')
+            try:
+                form.save()
+                messages.success(request, 'Product checked in successfully.')
+            except ValidationError as e:
+                messages.error(request, e.message)
         else:
             messages.error(request, 'Error checking in product.')
         racks = Location.objects.values('rack_name').distinct()
@@ -526,13 +526,13 @@ class UpdateLocationView(View):
     def post(self, request):
         form = UpdateLocationForm(request.POST)
         if form.is_valid():
-            sn = form.cleaned_data.get('sn')
+            SN = form.cleaned_data.get('SN')
             rack_name = form.cleaned_data.get('rack_name')
             layer_number = form.cleaned_data.get('layer_number')
             space_number = form.cleaned_data.get('space_number')
 
             try:
-                product = Product.objects.get(sn=sn)
+                product = Product.objects.get(SN=SN)
                 product.location = Location.objects.get(rack_name=rack_name, layer_number=layer_number, space_number=space_number)
                 product.save()
                 messages.success(request, 'Product location updated successfully.')
@@ -588,13 +588,16 @@ def get_layers_for_rack(request):
         layers = Location.objects.filter(rack_name=rack_name).values('layer_number').annotate(
             product_count=models.Count('product', filter=models.Q(product__isnull=False))
         ).distinct()
-        return JsonResponse({'layers': list(layers)})
+        layers_list = [{'layer_number': layer['layer_number'], 'product_count': layer['product_count']} for layer in layers]
+        return JsonResponse({'layers': layers_list})
     return JsonResponse({'layers': []})
+
 @require_GET
-def get_spaces_for_layer(request):
+def get_empty_spaces_for_layer(request):
     rack_name = request.GET.get('rack_name')
     layer_number = request.GET.get('layer_number')
     if rack_name and layer_number:
-        spaces = Location.objects.filter(rack_name=rack_name, layer_number=layer_number).values_list('space_number', flat=True)
+        spaces = Location.objects.filter(rack_name=rack_name, layer_number=layer_number, product__isnull=True).values_list('space_number', flat=True)
+        print(f"rack:{rack_name}, layer: {layer_number}, spaces{spaces}")
         return JsonResponse({'spaces': list(spaces)})
     return JsonResponse({'spaces': []})

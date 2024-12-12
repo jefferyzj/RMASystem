@@ -82,6 +82,16 @@
             radio.addEventListener('change', toggleTaskAction);
         });
 
+        // Add event listeners to status select and is_predefined checkbox
+        const statusSelect = document.querySelector('select[name="status"]');
+        const isPredefinedCheckbox = document.querySelector('input[name="is_predefined"]');
+        if (statusSelect) {
+            statusSelect.addEventListener('change', toggleOrderField);
+        }
+        if (isPredefinedCheckbox) {
+            isPredefinedCheckbox.addEventListener('change', toggleOrderField);
+        }
+
         // Display messages and handle redirection
         const messageContainer = document.querySelector('.messages');
         if (messageContainer && messageContainer.children.length > 0) {
@@ -119,10 +129,7 @@
     <label><input type="radio" name="task_action" value="view" title="View Task" onclick="toggleTaskAction()"> View Task</label>
     <label><input type="radio" name="task_action" value="add" title="Add Task" onclick="toggleTaskAction()"> Add Task</label>
     <label><input type="radio" name="task_action" value="delete" title="Delete Task" onclick="toggleTaskAction()"> Delete Task</label>
-
 </div>
-
-
 
 <form method="post" id="add-task-form">
     {% csrf_token %}
