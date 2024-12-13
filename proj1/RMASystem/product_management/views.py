@@ -541,7 +541,6 @@ class UpdateLocationView(FormView):
         return context
 
 
-
 @method_decorator(csrf_exempt, name='dispatch')
 class SearchLocationView(View):
     def post(self, request):

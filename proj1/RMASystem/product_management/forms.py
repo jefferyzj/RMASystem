@@ -403,7 +403,7 @@ class UpdateLocationForm(forms.Form):
             if not Product.objects.filter(SN=SN).exists():
                 raise forms.ValidationError(f"Product with SN {SN} does not exist.")
         return SNs
-
+    
     def save(self):
         SNs = self.cleaned_data.get('SNs')
         rack_name = self.cleaned_data.get('rack_name')
@@ -412,39 +412,60 @@ class UpdateLocationForm(forms.Form):
 
         results = {'success': [], 'failed': []}
 
-        if space_number and len(SNs) > 1:
-            raise ValidationError("Cannot assign the same space to multiple products.")
-
-        if not space_number:
-            available_spaces = Location.objects.filter(rack_name=rack_name, layer_number=layer_number, product__isnull=True).order_by('space_number')
-            if available_spaces.count() < len(SNs):
-                raise ValidationError("Not enough available spaces in the selected layer.")
-
+        # Release the location of the products if they have one
         for SN in SNs:
             try:
                 product = Product.objects.get(SN=SN)
-                if space_number:
-                    location = Location.objects.get(rack_name=rack_name, layer_number=layer_number, space_number=space_number)
-                else:
-                    location = available_spaces.first()
-                    available_spaces = available_spaces.exclude(space_number=location.space_number)
-
-                # Check if the location is already assigned to another product
-                if Product.objects.filter(location=location).exists():
-                    raise ValidationError(f"The location {location} is already assigned to another product.")
-
-                product.location = location
-                product.save()
-
-                # Update the location's product field
-                location.product = product
-                location.save()
-
-                results['success'].append(SN)
+                if product.location:
+                    location = product.location
+                    location.product = None
+                    location.save()
+                    product.location = None
+                    product.save()
+            except Product.DoesNotExist:
+                results['failed'].append((SN, "Product does not exist"))
             except Exception as e:
                 results['failed'].append((SN, str(e)))
 
+        # If space_number is provided, assign the product to that space
+        if space_number:
+            if len(SNs) > 1:
+                raise ValidationError("Cannot assign multiple products to the same space.")
+            else:
+                try:
+                    product = Product.objects.get(SN=SNs[0])
+                    new_location = Location.objects.get(rack_name=rack_name, layer_number=layer_number, space_number=space_number)
+                    new_location.product = product
+                    new_location.save()
+                    product.location = new_location
+                    product.save()
+                    results['success'].append(SNs[0])
+                except Exception as e:
+                    results['failed'].append((SNs[0], str(e)))
+        # If space_number is not provided, assign the products to the first available space in the layer
+        else:
+            available_spaces = list(Location.objects.filter(rack_name=rack_name, layer_number=layer_number, product__isnull=True).order_by('space_number'))
+            for SN in SNs:
+                try:
+                    if len(available_spaces) < 1:
+                        raise ValidationError("Not enough available spaces in the selected layer.")
+                    product = Product.objects.get(SN=SN)
+                    new_location = available_spaces.pop(0)
+                    product.location = new_location
+                    product.save()
+                    new_location.product = product
+                    new_location.save()
+                    results['success'].append(SN)
+                except ValidationError as ve:
+                    results['failed'].append((SN, str(ve)))
+                except Exception as e:
+                    results['failed'].append((SN, str(e)))
+        print(f'results: {results}')
         return results
+
+                    
+
+        
 
 
 # Formsets for featureManageView
