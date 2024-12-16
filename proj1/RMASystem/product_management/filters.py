@@ -40,5 +40,8 @@ class ProductFilter(django_filters.FilterSet):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.filters['location'].extra['choices'] = self.location_choices
-        # Set the default category to "PG520"
-        self.filters['category'].field.initial = Category.objects.get(name="PG520")
+        # Set the default category to "PG520" if it exists
+        try:
+            self.filters['category'].field.initial = Category.objects.get(name="PG520")
+        except Category.DoesNotExist:
+            self.filters['category'].field.initial = None

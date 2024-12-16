@@ -19,9 +19,12 @@ from .forms import CheckinNewForm, UpdateLocationForm
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 import json
+from django.core.paginator import Paginator
 
 def home_view(request):
     return render(request, 'base.html')
+
+
 
 class ProductListView(FilterView):
     model = Product
@@ -29,16 +32,34 @@ class ProductListView(FilterView):
     context_object_name = 'products'
     paginate_by = 10
     filterset_class = ProductFilter
+    ordering = ['category']
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        
+        # Retrieve the filtered queryset
+        queryset = self.get_queryset()
+
+        # Manually paginate the queryset
+        paginator = Paginator(queryset, self.paginate_by)
+        page_number = self.request.GET.get('page')
+        page_obj = paginator.get_page(page_number)
+        
+        # Add pagination to context
+        context['products'] = page_obj  # Pass the paginated queryset
+        context['filter'] = self.filterset  # Pass filter form to context
+
+        # Add extra context as needed
         context['categories'] = Category.objects.all()
         context['locations'] = Location.objects.all()
         context['priority_levels'] = PRIORITY_LEVEL_CHOICES
         context['statuses'] = Status.objects.all()
         context['tasks'] = Task.objects.all()
         context['selected_categories'] = self.request.GET.getlist('category')
+
         return context
+
+
 
 class ProductDetailView(UpdateView):
     model = Product

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load i18n %}
 
 {% block title %}Product List{% endblock %}
 
@@ -162,12 +163,22 @@
 </table>
 
 <div class="pagination">
-    {% if products.has_previous %}
-        <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% for category in selected_categories %}category={{ category }}&{% endfor %}{% if request.GET.location %}location={{ request.GET.location }}&{% endif %}{% if request.GET.priority_level %}priority_level={{ request.GET.priority_level }}&{% endif %}{% if request.GET.current_status %}current_status={{ request.GET.current_status }}&{% endif %}{% if request.GET.current_task %}current_task={{ request.GET.current_task }}&{% endif %}page={{ products.previous_page_number }}">Previous</a>
-    {% endif %}
-    <span>Page {{ products.number }} of {{ products.paginator.num_pages }}</span>
-    {% if products.has_next %}
-        <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% for category in selected_categories %}category={{ category }}&{% endfor %}{% if request.GET.location %}location={{ request.GET.location }}&{% endif %}{% if request.GET.priority_level %}priority_level={{ request.GET.priority_level }}&{% endif %}{% if request.GET.current_status %}current_status={{ request.GET.current_status }}&{% endif %}{% if request.GET.current_task %}current_task={{ request.GET.current_task }}&{% endif %}page={{ products.next_page_number }}">Next</a>
-    {% endif %}
+    <span class="step-links">
+        {% if products.has_previous %}
+            <a href="?page=1{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">&laquo; first</a>
+            <a href="?page={{ products.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">previous</a>
+        {% endif %}
+
+        <span class="current">
+            Page {{ products.number }} of {{ products.paginator.num_pages }}.
+        </span>
+
+        {% if products.has_next %}
+            <a href="?page={{ products.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">next</a>
+            <a href="?page={{ products.paginator.num_pages }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">last &raquo;</a>
+        {% endif %}
+    </span>
 </div>
+
+
 {% endblock %}
