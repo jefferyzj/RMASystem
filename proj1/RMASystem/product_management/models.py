@@ -264,18 +264,20 @@ class ProductStatus(TimeStampedModel, SoftDeletableModel):
     Get the result of tasks of the product under the status, and return the result as a string. 
     """
     def get_product_status_result(self):
+        """
+        Get the result of tasks of the product under the status, and return the result as a string.
+        """
         product_tasks = ProductTask.objects.filter(
             product=self.product, 
             task__statustask__status=self.status,
-            is_removed = False
-            ).select_related('task'
-            ).order_by('task__statustask__created')
+            is_removed=False
+        ).select_related('task').order_by('task__statustask__created')
 
         result = f'{self.status.name}: '
         for product_task in product_tasks:
             task_situation = 'Completed' if product_task.is_completed else 'Skipped' if product_task.is_skipped else 'Not Yet Done'
             result += f'{product_task.task.task_name} - is {task_situation} - Result: {product_task.result}'
-            if  product_tasks.note:
+            if product_task.note:
                 result += f' - Note: {product_task.note}'
             result += ' | '
         return result
@@ -362,6 +364,7 @@ class Product(TimeStampedModel):
     def _initialize_new_product(self):
         rma_sorting_status, created = Status.objects.get_or_create(name="RMA Sorting")
         self.current_status = rma_sorting_status
+        ProductStatus.objects.create(product=self, status=rma_sorting_status)
         self.assign_predefined_tasks_by_status()
         self._locate_current_task(initial_save=True)
 
@@ -451,7 +454,7 @@ class Product(TimeStampedModel):
 
     def list_status_result_history(self):
         """
-        list the status result history of the product with tasks in all statuses, and return the result as a string
+        List the status result history of the product with tasks in all statuses, and return the result as a string.
         """
         all_product_statuses = self.status_history_of_product.order_by('changed_at')
         history = [f'Product SN: {self.SN}']

@@ -1,5 +1,5 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from django.views.generic import View, ListView, UpdateView, CreateView, FormView
+from django.views.generic import View, ListView, UpdateView, CreateView, FormView, DetailView
 from django.urls import reverse_lazy
 from .models import Product, ProductTask, Category, Task, Location, Status, StatusTransition, ProductStatus, StatusTask
 from .forms import ProductForm, ProductTaskForm, TaskForm, LocationForm, StatusTransitionForm, CategoryForm, StatusTaskForm, StatusForm
@@ -23,8 +23,6 @@ from django.core.paginator import Paginator
 
 def home_view(request):
     return render(request, 'base.html')
-
-
 
 class ProductListView(FilterView):
     model = Product
@@ -59,31 +57,18 @@ class ProductListView(FilterView):
 
         return context
 
-
-
-class ProductDetailView(UpdateView):
+class ProductDetailView(DetailView):
     model = Product
-    form_class = ProductForm
     template_name = 'product_detail.html'
+    context_object_name = 'product'
     slug_field = 'SN'
     slug_url_kwarg = 'SN'
-    context_object_name = 'product'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         product = self.get_object()
         context['status_history'] = product.list_status_result_history()
         return context
-
-    def form_valid(self, form):
-        new_location_name = form.cleaned_data.get('new_location')
-        if new_location_name:
-            new_location, created = Location.objects.get_or_create(rack_name=new_location_name)
-            form.instance.location = new_location
-        return super().form_valid(form)
-
-    def get_success_url(self):
-        return reverse_lazy('product_detail', kwargs={'SN': self.object.SN})
 
 class ProductStatusTaskEditView(UpdateView):
     model = Product
@@ -163,7 +148,6 @@ class StatusTransitionView(FormView):
         self.product.save()
 
         return redirect('product_detail', pk=self.product.pk)
-
 
 class FeatureManageView(View):
     template_name = 'feature_manage.html'
@@ -413,8 +397,6 @@ class ManageTasksView(View):
             'existing_tasks': existing_tasks
         })
 
-
-
 class ManageLocationsView(View):
     template_name = 'manage_locations.html'
 
@@ -495,7 +477,6 @@ class CheckinView(View):
     def get(self, request):
         return render(request, self.template_name)
 
-
 class CheckinNewView(FormView):
     template_name = 'checkin_new.html'
     form_class = CheckinNewForm
@@ -560,7 +541,6 @@ class UpdateLocationView(FormView):
         context = super().get_context_data(**kwargs)
         context['racks'] = Location.objects.values('rack_name').distinct()
         return context
-
 
 @method_decorator(csrf_exempt, name='dispatch')
 class SearchLocationView(View):

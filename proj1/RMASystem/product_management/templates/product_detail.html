@@ -5,16 +5,46 @@
 {% block content %}
 <h2>Product Detail</h2>
 
-<p><strong>Serial Number:</strong> {{ product.SN }}</p>
-<p><strong>Category:</strong> {{ product.category.name }}</p>
-<p><strong>Location:</strong> {{ product.location.rack_name }}</p>
-<p><strong>Priority Level:</strong> {{ product.get_priority_level_display }}</p>
-<p><strong>Current Status:</strong> {{ product.current_status.name }}</p>
-<p><strong>Current Task:</strong> {{ product.current_task.action }}</p>
+<table>
+    <tr>
+        <th>Serial Number</th>
+        <td>{{ product.SN }}</td>
+    </tr>
+    <tr>
+        <th>Category</th>
+        <td>{{ product.category.name }}</td>
+    </tr>
+    <tr>
+        <th>Location</th>
+        <td>{{ product.location.short_name }}</td>
+    </tr>
+    <tr>
+        <th>Short 12V/48V</th>
+        <td>{{ product.get_short_12V_48V_display }}</td>
+    </tr>
+    
+    <tr>
+        <th>Priority Level</th>
+        <td>{{ product.get_priority_level_display }}</td>
+    </tr>
+    <tr>
+        <th>Description</th>
+        <td>{{ product.description }}</td>
+    </tr>
+
+    <tr>
+        <th>Current Status</th>
+        <td>{{ product.current_status.name }}</td>
+    </tr>
+    <tr>
+        <th>Current Task</th>
+        <td>{{ product.current_task.task_name }}</td>
+    </tr>
+</table>
 
 <h3>Status History</h3>
 <pre>{{ status_history }}</pre>
 
-<a href="{% url 'product_list' %}">Back to Product List</a>
 <a href="{% url 'product_status_task_edit' product.SN %}">Edit Status/Task</a>
+<a href="{% url 'product_list' %}">Back to Product List</a>
 {% endblock %}
