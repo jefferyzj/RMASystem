@@ -1,0 +1,16 @@
+<!-- filepath: /c:/Users/TESTING/Documents/FA/project/learnsomeNewThing/proj1/RMASystem/product_management/templates/edit_status_or_task.html -->
+{% extends 'base.html' %}
+
+{% block title %}Edit Status or Task{% endblock %}
+
+{% block content %}
+<h2>Edit Status or Task</h2>
+
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Save changes</button>
+</form>
+
+<a href="{% url 'product_list' %}">Back to Product List</a>
+{% endblock %}

@@ -20,6 +20,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 import json
 from django.core.paginator import Paginator
+from .forms import EditStatusOrTaskForm
 
 def home_view(request):
     return render(request, 'base.html')
@@ -70,16 +71,6 @@ class ProductDetailView(DetailView):
         context['status_history'] = product.list_status_result_history()
         return context
 
-class ProductStatusTaskEditView(UpdateView):
-    model = Product
-    form_class = ProductForm
-    template_name = 'product_status_task_edit.html'
-    slug_field = 'SN'
-    slug_url_kwarg = 'SN'
-    context_object_name = 'product'
-
-    def get_success_url(self):
-        return reverse_lazy('product_detail', kwargs={'SN': self.object.SN})
 
 class ProductTaskView(View):
     def get(self, request, SN):
@@ -541,6 +532,14 @@ class UpdateLocationView(FormView):
         context = super().get_context_data(**kwargs)
         context['racks'] = Location.objects.values('rack_name').distinct()
         return context
+
+class EditStatusOrTaskView(UpdateView):
+    model = Product
+    form_class = EditStatusOrTaskForm
+    template_name = 'edit_status_or_task.html'
+    success_url = reverse_lazy('product_list')
+    slug_field = 'SN'
+    slug_url_kwarg = 'SN'
 
 @method_decorator(csrf_exempt, name='dispatch')
 class SearchLocationView(View):

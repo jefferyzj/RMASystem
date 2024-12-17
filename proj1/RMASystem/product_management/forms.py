@@ -8,6 +8,10 @@ from django.core.validators import RegexValidator, MinValueValidator
 from django.forms import modelformset_factory
 from django.core.exceptions import ValidationError
 import re
+from django import forms
+from django.core.exceptions import ValidationError
+from django.db import transaction
+from .models import Product, Status, ProductStatus, StatusTask, ProductTask
 
 
 class BaseForm(forms.ModelForm):
@@ -366,11 +370,20 @@ class CheckinNewForm(forms.Form):
                     priority_level=priority_level
                 )
                 product.save()
+                self._initialize_new_product(product)
                 results['success'].append(SN)
             except Exception as e:
                 results['failed'].append((SN, str(e)))
 
         return results
+
+    def _initialize_new_product(self, product):
+        rma_sorting_status, created = Status.objects.get_or_create(name="RMA Sorting")
+        product.current_status = rma_sorting_status
+        ProductStatus.objects.create(product=product, status=rma_sorting_status)
+        product.assign_predefined_tasks_by_status()
+        product._locate_current_task(initial_save=True)
+        product.save()
 
 class UpdateLocationForm(forms.Form):
     SNs = forms.CharField(widget=forms.Textarea(attrs={'rows': 5}), required=True, label="Serial Numbers (one per line)")
@@ -463,8 +476,50 @@ class UpdateLocationForm(forms.Form):
         print(f'results: {results}')
         return results
 
-                    
+                
 
+class EditStatusOrTaskForm(forms.ModelForm):
+    class Meta:
+        model = Product
+        fields = ['current_status', 'current_task']
+
+    def save(self, commit=True):
+        product = super().save(commit=False)
+        is_new = product._state.adding
+        previous_status = None
+
+        with transaction.atomic():
+            if not is_new:
+                previous_status = Product.objects.get(pk=product.pk).current_status
+                if previous_status and previous_status != product.current_status:
+                    if not self.is_allowed_change_status(product, previous_status):
+                        raise ValidationError(f"All tasks under the current status-{previous_status.name}-must be completed or skipped before changing.")
+                    if previous_status.is_closed:
+                        raise ValidationError("Now in the closed status, cannot change the status.")
+                    self._handle_status_change(product)
+            
+            if commit:
+                product.save()
+        return product
+
+    def is_allowed_change_status(self, product, previous_status):
+        active_tasks = product.tasks_of_product.filter(
+            is_removed=False,
+            is_completed=False, 
+            is_skipped=False, 
+            task__statustask__status=previous_status)
+        return not active_tasks.exists()
+
+    def _handle_status_change(self, product):
+        ProductStatus.objects.get_or_create(product=product, status=product.current_status)
+        product.assign_predefined_tasks_by_status()
+        product._locate_current_task()
+        if product.current_status.is_closed:
+            if product.location:
+                product.location.product = None
+                product.location.save()
+            product.location = None
+            product.current_task = None
         
 
 

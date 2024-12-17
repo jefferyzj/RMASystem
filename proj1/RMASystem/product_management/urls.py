@@ -18,8 +18,8 @@ from .views import (
     CheckinNewView,
     UpdateLocationView,
     ViewStatusView,
-    ProductStatusTaskEditView,
-    SearchLocationView
+    SearchLocationView,
+    EditStatusOrTaskView
 
 
 )
@@ -28,8 +28,9 @@ urlpatterns = [
     path('', home_view, name='home'),
     path('products/', ProductListView.as_view(), name='product_list'),
     path('products/<str:SN>/', ProductDetailView.as_view(), name='product_detail'),
-    path('products/<str:SN>/edit/', ProductStatusTaskEditView.as_view(), name='product_status_task_edit'),
+    path('products/<str:SN>/edit/', EditStatusOrTaskView.as_view(), name='edit_status_or_task'),
     
+
     #urls for feature management
     path('feature_manage/', FeatureManageView.as_view(), name='feature_manage'),
     path('manage_categories/', ManageCategoriesView.as_view(), name='manage_categories'),

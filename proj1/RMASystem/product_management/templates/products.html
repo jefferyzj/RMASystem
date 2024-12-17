@@ -155,7 +155,7 @@
                 <td>{{ product.current_task.task_name }}</td>
                 <td>
                     <a href="{% url 'product_detail' product.SN %}">Detail</a>
-                    <a href="{% url 'product_status_task_edit' product.SN %}">Edit Status/Task</a>
+                    <a href="{% url 'edit_status_or_task' product.SN %}">Edit Status/Task</a>
                 </td>
             </tr>
         {% endfor %}
@@ -179,6 +179,5 @@
         {% endif %}
     </span>
 </div>
-
 
 {% endblock %}

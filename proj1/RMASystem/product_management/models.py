@@ -327,6 +327,7 @@ class Product(TimeStampedModel):
         return f'Product SN: {self.SN} | Priority: {self.priority_level} | Current Status: {self.current_status.name if self.current_status else "No status"} | Action of Task: {current_task_name}'
     
     
+    
     @transaction.atomic
     def save(self, *args, **kwargs):
         """
@@ -334,59 +335,11 @@ class Product(TimeStampedModel):
         If status change, assign the predefined tasks of the status to the product, and locate the current task of the product.
         """
         is_new = self._state.adding
-        print(f"is new: {is_new}")
-        previous_status = None
 
         with transaction.atomic():
-            if not is_new:
-                print(f"not new, the self.pk is {self.pk}")
-                previous_status = Product.objects.get(pk=self.pk).current_status
-                if previous_status and previous_status != self.current_status:
-                    if not self.is_allowed_change_status(previous_status):
-                        raise ValidationError(f"All tasks under the current status-{previous_status.name}-must be completed or skipped before changing.")
-                    if previous_status.is_closed:
-                        raise ValidationError("Now in the closed status, cannot change the status.")
-                    self._handle_status_change()
-            else:
-                self._initialize_new_product()
-            
             super().save(*args, **kwargs)
 
-    def is_allowed_change_status(self, previous_status):
-        active_tasks = self.tasks_of_product.filter(
-            is_removed = False,
-            is_completed=False, 
-            is_skipped=False, 
-            task__statustask__status=previous_status)
-        return not active_tasks.exists()
-
-
-    def _initialize_new_product(self):
-        rma_sorting_status, created = Status.objects.get_or_create(name="RMA Sorting")
-        self.current_status = rma_sorting_status
-        ProductStatus.objects.create(product=self, status=rma_sorting_status)
-        self.assign_predefined_tasks_by_status()
-        self._locate_current_task(initial_save=True)
-
-
-    def _handle_status_change(self):
-        ProductStatus.objects.get_or_create(product=self, status=self.current_status)
-        self.assign_predefined_tasks_by_status()
-        self._locate_current_task()
-        if self.current_status.is_closed:
-            if self.location:
-                self.location.product = None
-                self.location.save()
-            self.location = None
-            self.current_task = None
-        #current_task had been saved in the locate_current_task method
-           
-
     def _locate_current_task(self, initial_save=False):
-        """
-        Locate the current task of the product and save it to the current_task field, and update the database.
-        Can deal with current task being None or current task being completed or skipped.
-        """
         first_active_product_task = self.tasks_of_product.filter(
             is_removed=False,
             is_completed=False, 
@@ -397,7 +350,6 @@ class Product(TimeStampedModel):
 
         if self.current_task != (new_current_product_task.task if new_current_product_task else None):
             self.current_task = new_current_product_task.task if new_current_product_task else None
-            print(f'the updated current task for this unit is {self.current_task}')
             if not initial_save:
                 self.save(update_fields=['current_task'])
             else:
@@ -406,64 +358,39 @@ class Product(TimeStampedModel):
         return self.current_task
 
     def assign_predefined_tasks_by_status(self):
-        """
-        Assign the predefined tasks of the current status to the product
-        """
-        status_tasks_predefined = self.current_status.status_tasks.filter(is_predefined=True,is_removed = False).order_by('order')
+        status_tasks_predefined = self.current_status.status_tasks.filter(is_predefined=True, is_removed=False).order_by('order')
         for status_task in status_tasks_predefined:
             self.assign_tasks(status_task.task, set_as_predefined_of_status=True)
 
     def assign_tasks(self, task, set_as_predefined_of_status=False):
-        """
-        Assign a task to the product
-        """
         with transaction.atomic():
-            # Create a StatusTask for the status and task if necessary
             StatusTask.objects.get_or_create(
                 status=self.current_status,
                 task=task,
                 defaults={'is_predefined': set_as_predefined_of_status}
             )
-            # Create a ProductTask for the product
             ProductTask.objects.get_or_create(product=self, task=task, is_predefined=set_as_predefined_of_status)
 
-
     def get_all_tasks_of_product(self, only_active=False):
-        """
-        get all the tasks of the product, and return the queryset of the tasks ordered by the created time of the status of the task and the order of the task in the status
-        The instances returned are the instances of the ProductTask model
-        """
-        tasks = self.tasks_of_product.filter(is_removed = False).select_related('task__statustask__status').order_by(
+        tasks = self.tasks_of_product.filter(is_removed=False).select_related('task__statustask__status').order_by(
             'task__statustask__status__created', 'task__statustask__order'
         )
         if only_active:
-            tasks = tasks.filter(is_completed=False, is_skipped=False,is_removed = False,)
+            tasks = tasks.filter(is_completed=False, is_skipped=False, is_removed=False)
         return tasks
 
-
     def get_ongoing_task(self):
-        """
-        get the ongoing task of the product as productTask instance
-        """
-        return self.tasks_of_product.filter(Q(task = self.current_task) 
-                                            & Q(product = self) 
-                                            &  Q(is_completed = False) 
-                                            & Q(is_skipped = False)
-                                            & Q(is_removed = False))
-    
+        return self.tasks_of_product.filter(
+            Q(task=self.current_task) & Q(product=self) & Q(is_completed=False) & Q(is_skipped=False) & Q(is_removed=False)
+        )
 
     def list_status_result_history(self):
-        """
-        List the status result history of the product with tasks in all statuses, and return the result as a string.
-        """
         all_product_statuses = self.status_history_of_product.order_by('changed_at')
         history = [f'Product SN: {self.SN}']
         for product_status in all_product_statuses:
             status_result = product_status.get_product_status_result()
             history.append(f'{status_result} at {product_status.changed_at}')
         return "\n".join(history)
-    
-
 
 
 
