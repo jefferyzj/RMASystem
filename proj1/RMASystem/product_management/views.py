@@ -21,6 +21,9 @@ from django.utils.decorators import method_decorator
 import json
 from django.core.paginator import Paginator
 from .forms import EditStatusOrTaskForm
+from rest_framework import viewsets
+from .serializers import CategorySerializer, LocationSerializer, StatusSerializer, StatusTransitionSerializer, StatusTaskSerializer, TaskSerializer, ProductTaskSerializer, ProductStatusSerializer, ProductSerializer
+
 
 def home_view(request):
     return render(request, 'base.html')
@@ -618,3 +621,40 @@ def get_empty_spaces_for_layer(request):
         print(f"rack:{rack_name}, layer: {layer_number}, spaces{spaces}")
         return JsonResponse({'spaces': list(spaces)})
     return JsonResponse({'spaces': []})
+
+#new viewsets for api endpoints
+class CategoryViewSet(viewsets.ModelViewSet):
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+
+class LocationViewSet(viewsets.ModelViewSet):
+    queryset = Location.objects.all()
+    serializer_class = LocationSerializer
+
+class StatusViewSet(viewsets.ModelViewSet):
+    queryset = Status.objects.all()
+    serializer_class = StatusSerializer
+
+class StatusTransitionViewSet(viewsets.ModelViewSet):
+    queryset = StatusTransition.objects.all()
+    serializer_class = StatusTransitionSerializer
+
+class StatusTaskViewSet(viewsets.ModelViewSet):
+    queryset = StatusTask.objects.all()
+    serializer_class = StatusTaskSerializer
+
+class TaskViewSet(viewsets.ModelViewSet):
+    queryset = Task.objects.all()
+    serializer_class = TaskSerializer
+
+class ProductTaskViewSet(viewsets.ModelViewSet):
+    queryset = ProductTask.objects.all()
+    serializer_class = ProductTaskSerializer
+
+class ProductStatusViewSet(viewsets.ModelViewSet):
+    queryset = ProductStatus.objects.all()
+    serializer_class = ProductStatusSerializer
+
+class ProductViewSet(viewsets.ModelViewSet):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer

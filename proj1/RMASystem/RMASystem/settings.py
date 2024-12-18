@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'model_utils',
     'django_extensions',
     'django_filters',
+    'rest_framework',
 
 ]
 
