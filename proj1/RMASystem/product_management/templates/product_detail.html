@@ -2,47 +2,134 @@
 
 {% block title %}Product Detail{% endblock %}
 
+{% block extra_head %}
+<style>
+    .container {
+        display: flex;
+        gap: 20px;
+    }
+    .basic-info {
+        flex: 1;
+    }
+    .divider {
+        border-left: 2px dotted #ddd;
+        margin: 0 20px;
+    }
+    .status-history {
+        flex: 2;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+    }
+    table, th, td {
+        border: 1px solid #ddd;
+    }
+    th, td {
+        padding: 8px;
+        text-align: left;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+    ul {
+        list-style-type: none;
+        padding: 0;
+    }
+    li {
+        margin-bottom: 10px;
+    }
+    .buttons {
+        margin-top: 20px;
+    }
+    .button {
+        display: inline-block;
+        padding: 10px 20px;
+        margin-right: 10px;
+        background-color: #007bff;
+        color: white;
+        text-decoration: none;
+        border-radius: 5px;
+        transition: background-color 0.3s;
+    }
+    .button:hover {
+        background-color: #0056b3;
+    }
+    .back-button {
+        display: flex;
+        justify-content: center;
+        margin-top: 20px;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <h2>Product Detail</h2>
 
-<table>
-    <tr>
-        <th>Serial Number</th>
-        <td>{{ product.SN }}</td>
-    </tr>
-    <tr>
-        <th>Category</th>
-        <td>{{ product.category.name }}</td>
-    </tr>
-    <tr>
-        <th>Location</th>
-        <td>{{ product.location.short_name }}</td>
-    </tr>
-    <tr>
-        <th>Short 12V/48V</th>
-        <td>{{ product.get_short_12V_48V_display }}</td>
-    </tr>
-    <tr>
-        <th>Priority Level</th>
-        <td>{{ product.get_priority_level_display }}</td>
-    </tr>
-    <tr>
-        <th>Description</th>
-        <td>{{ product.description }}</td>
-    </tr>
-    <tr>
-        <th>Current Status</th>
-        <td>{{ product.current_status.name }}</td>
-    </tr>
-    <tr>
-        <th>Current Task</th>
-        <td>{{ product.current_task.task_name }}</td>
-    </tr>
-</table>
+<div class="container">
+    <div class="basic-info">
+        <h3>Basic Information</h3>
+        <table>
+            <tr>
+                <th>Serial Number</th>
+                <td>{{ product.SN }}</td>
+            </tr>
+            <tr>
+                <th>Category</th>
+                <td>{{ product.category.name }}</td>
+            </tr>
+            <tr>
+                <th>Location</th>
+                <td>{{ product.location.short_name }}</td>
+            </tr>
+            <tr>
+                <th>Short 12V/48V</th>
+                <td>{{ product.get_short_12V_48V_display }}</td>
+            </tr>
+            <tr>
+                <th>Priority Level</th>
+                <td>{{ product.get_priority_level_display }}</td>
+            </tr>
+            <tr>
+                <th>Description</th>
+                <td>{{ product.description }}</td>
+            </tr>
+            <tr>
+                <th>Current Status</th>
+                <td>{{ product.current_status.name }}</td>
+            </tr>
+            <tr>
+                <th>Current Task</th>
+                <td>{{ product.current_task.task_name }}</td>
+            </tr>
+        </table>
+    </div>
 
-<h3>Status History</h3>
-<pre>{{ status_history }}</pre>
+    <div class="divider"></div>
 
-<a href="{% url 'edit_status_or_task' product.SN %}">Edit Status/Task</a>
-<a href="{% url 'product_list' %}">Back to Product List</a>
+    <div class="status-history">
+        <div class="buttons">
+            <a href="{% url 'edit_status_or_task' product.SN %}" class="button">Edit Status/Task</a>
+        </div>
+        <h3>Status History</h3>
+        {% for status_result in status_history %}
+            <h4>{{ status_result.status_name }}</h4>
+            <ul>
+                {% for task in status_result.tasks %}
+                    <li>
+                        <strong>{{ task.task_name }}</strong> - {{ task.task_situation }} - Result: {{ task.result }}
+                        {% if task.note %}
+                            - Note: {{ task.note }}
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="back-button">
+    <a href="{% url 'product_list' %}" class="button">Back to Product List</a>
+</div>
 {% endblock %}

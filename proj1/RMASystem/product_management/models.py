@@ -260,27 +260,31 @@ class ProductStatus(TimeStampedModel, SoftDeletableModel):
     def __str__(self):
         return f'{self.product.SN} - {self.status.name} at {self.changed_at}'
     
-    """
-    Get the result of tasks of the product under the status, and return the result as a string. 
-    """
     def get_product_status_result(self):
         """
-        Get the result of tasks of the product under the status, and return the result as a string.
+        Get the result of tasks of the product under the status, and return the result as a structured list.
         """
         product_tasks = ProductTask.objects.filter(
             product=self.product, 
-            task__statustask__status=self.status,
+            task__task_statuses__status=self.status,
             is_removed=False
-        ).select_related('task').order_by('task__statustask__created')
+        ).select_related('task').order_by('task__task_statuses__created')
 
-        result = f'{self.status.name}: '
+        task_results = []
         for product_task in product_tasks:
             task_situation = 'Completed' if product_task.is_completed else 'Skipped' if product_task.is_skipped else 'Not Yet Done'
-            result += f'{product_task.task.task_name} - is {task_situation} - Result: {product_task.result}'
-            if product_task.note:
-                result += f' - Note: {product_task.note}'
-            result += ' | '
-        return result
+            task_result = {
+                'task_name': product_task.task.task_name,
+                'task_situation': task_situation,
+                'result': product_task.result,
+                'note': product_task.note
+            }
+            task_results.append(task_result)
+
+        return {
+            'status_name': self.status.name,
+            'tasks': task_results
+        }
 
 class Product(TimeStampedModel):
     """
@@ -386,11 +390,11 @@ class Product(TimeStampedModel):
 
     def list_status_result_history(self):
         all_product_statuses = self.status_history_of_product.order_by('changed_at')
-        history = [f'Product SN: {self.SN}']
+        history = []
         for product_status in all_product_statuses:
             status_result = product_status.get_product_status_result()
-            history.append(f'{status_result} at {product_status.changed_at}')
-        return "\n".join(history)
+            history.append(status_result)
+        return history
 
 
 
