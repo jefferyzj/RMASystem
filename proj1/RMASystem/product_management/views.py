@@ -623,6 +623,17 @@ def get_empty_spaces_for_layer(request):
     return JsonResponse({'spaces': []})
 
 #new viewsets for api endpoints
+class SoftDeleteModelViewSet(viewsets.ModelViewSet):
+    def get_queryset(self):
+        # Filter out objects where is_removed is True
+        return self.queryset.filter(is_removed=False)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.is_removed = True
+        instance.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
@@ -631,7 +642,7 @@ class LocationViewSet(viewsets.ModelViewSet):
     queryset = Location.objects.all()
     serializer_class = LocationSerializer
 
-class StatusViewSet(viewsets.ModelViewSet):
+class StatusViewSet(SoftDeleteModelViewSet):
     queryset = Status.objects.all()
     serializer_class = StatusSerializer
 
@@ -639,19 +650,19 @@ class StatusTransitionViewSet(viewsets.ModelViewSet):
     queryset = StatusTransition.objects.all()
     serializer_class = StatusTransitionSerializer
 
-class StatusTaskViewSet(viewsets.ModelViewSet):
+class StatusTaskViewSet(SoftDeleteModelViewSet):
     queryset = StatusTask.objects.all()
     serializer_class = StatusTaskSerializer
 
-class TaskViewSet(viewsets.ModelViewSet):
+class TaskViewSet(SoftDeleteModelViewSet):
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
 
-class ProductTaskViewSet(viewsets.ModelViewSet):
+class ProductTaskViewSet(SoftDeleteModelViewSet):
     queryset = ProductTask.objects.all()
     serializer_class = ProductTaskSerializer
 
-class ProductStatusViewSet(viewsets.ModelViewSet):
+class ProductStatusViewSet(SoftDeleteModelViewSet):
     queryset = ProductStatus.objects.all()
     serializer_class = ProductStatusSerializer
 
