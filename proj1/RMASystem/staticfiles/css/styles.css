@@ -1,0 +1,112 @@
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #f0f2f5; /* Light background color for the body */
+}
+
+header {
+    background-color: #007bff; /* Primary blue color */
+    color: #ffffff; /* White text color */
+    padding: 10px;
+    text-align: center;
+    width: 100%;
+    font-size: 1.2em; /* Adjust the font size to make the header smaller */
+    flex-shrink: 0; /* Ensure the header doesn't shrink */
+}
+
+.toast {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 300px;
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    z-index: 1050;
+    display: none;
+}
+
+.toast-success {
+    background-color: #d4edda;
+    color: #155724;
+}
+.toast-error {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.container {
+    display: flex;
+    flex: 1;
+}
+
+nav {
+    width: 180px; /* Make the navigation menu narrower */
+    background-color: #343a40; /* Dark background color for the navigation */
+    padding: 10px;
+    flex-shrink: 0; /* Ensure the navigation menu doesn't shrink */
+    color: #ffffff; /* White text color */
+    height: calc(100vh - 40px); /* Make the navigation menu take up the full height minus the header */
+    position: fixed; /* Fix the navigation menu to the left side */
+    top: 115px; /* Adjust for the height of the header */
+    left: 0;
+    overflow-y: auto; /* Add vertical scrolling if needed */
+}
+
+nav ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+nav ul li {
+    margin: 10px 0;
+}
+
+nav ul li a {
+    text-decoration: none;
+    color: #ffffff; /* White text color for links */
+    padding: 5px 10px;
+    display: block;
+    border-radius: 4px;
+}
+
+nav ul li a:hover {
+    background-color: #495057; /* Slightly lighter background on hover */
+}
+
+main {
+    flex: 1;
+    padding: 20px;
+    background-color: #ffffff; /* White background color for the main content */
+    margin-left: 200px; /* Add margin to make space for the fixed navigation menu */
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); /* Add a subtle shadow for better contrast */
+    border-radius: 8px; /* Rounded corners for the main content */
+    margin-top: 40px; /* Adjust for the height of the header */
+}
+
+.form-section {
+    display: none;
+}
+
+.hidden {
+    display: none;
+}
+
+/* Style for the clickable title */
+.clickable-title {
+    color: #007bff; /* Primary blue color */
+    text-decoration: none;
+    font-size: 2em; /* Larger font size */
+    font-weight: bold; /* Bold text */
+    display: inline-block;
+    margin-bottom: 20px; /* Space below the title */
+}
+
+.clickable-title:hover {
+    text-decoration: underline; /* Underline on hover */
+    color: #0056b3; /* Darker blue on hover */
+}
