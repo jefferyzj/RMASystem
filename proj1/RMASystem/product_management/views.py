@@ -669,3 +669,6 @@ class ProductStatusViewSet(SoftDeleteModelViewSet):
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
+
+def index(request):
+    return render(request, 'frontend/index.html')

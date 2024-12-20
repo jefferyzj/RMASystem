@@ -1,5 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from .views import index
 from .views import (
     home_view,
     ProductListView,
@@ -77,4 +78,6 @@ urlpatterns = [
 
     # Include the API URLs
     path('api/', include(router.urls)),
+
+    path('', index, name= 'index')
 ]
