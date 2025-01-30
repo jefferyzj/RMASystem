@@ -2,16 +2,11 @@ from django import forms
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Submit
 from .models import Product, Category, Status, Task, ProductTask, StatusTask, Location, StatusTransition, ProductStatus
-from django.db import transaction
-from .utilhelpers import PRIORITY_LEVEL_CHOICES
 from django.core.validators import RegexValidator, MinValueValidator
 from django.forms import modelformset_factory
 from django.core.exceptions import ValidationError
-import re
-from django import forms
-from django.core.exceptions import ValidationError
-from django.db import transaction
-from .models import Product, Status, ProductStatus, StatusTask, ProductTask
+from .utilhelpers import PRIORITY_LEVEL_CHOICES
+
 
 
 class BaseForm(forms.ModelForm):
